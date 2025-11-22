@@ -429,7 +429,8 @@ export const customerCaseService = {
           caseData.status = 'assigned';
           autoAssigned++;
         } else {
-          caseData.assigned_employee_id = undefined;
+          caseData.telecaller_id = null;
+          caseData.assigned_employee_id = null;
           caseData.status = 'new';
           unassigned++;
         }
@@ -485,11 +486,11 @@ export const customerCaseService = {
         throw new Error('Failed to find telecaller details');
       }
 
-      updateData.assigned_employee_id = telecaller.emp_id || undefined;
+      updateData.assigned_employee_id = telecaller.emp_id || null;
       updateData.status = 'assigned';
     } else {
       // Unassigning - clear assigned_employee_id and set status to 'new'
-      updateData.assigned_employee_id = undefined;
+      updateData.assigned_employee_id = null;
       updateData.status = 'new';
     }
 

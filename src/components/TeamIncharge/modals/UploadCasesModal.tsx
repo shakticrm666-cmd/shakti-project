@@ -7,6 +7,7 @@ import { useNotification, notificationHelpers } from '../../shared/Notification'
 import { useAuth } from '../../../contexts/AuthContext';
 import { TeamService } from '../../../services/teamService';
 import { ColumnValidationModal } from '../forms/ColumnValidationModal';
+import { UploadValidationModal } from './UploadValidationModal';
 
 interface UploadCasesModalProps {
   isOpen: boolean;
@@ -41,6 +42,19 @@ export const UploadCasesModal: React.FC<UploadCasesModalProps> = ({
 
   // Column validation modal
   const [showColumnValidationModal, setShowColumnValidationModal] = useState(false);
+
+  // Upload validation modal
+  const [showUploadValidationModal, setShowUploadValidationModal] = useState(false);
+  const [validationResult, setValidationResult] = useState<{
+    totalRows: number;
+    validRows: number;
+    invalidRows: number;
+    errors: Array<{ row: number; column: string; value: string; error: string }>;
+    duplicateLoanIds: Array<{ loanId: string; rows: number[] }>;
+    warnings: Array<{ row: number; column: string; message: string }>;
+  } | null>(null);
+  const [parsedData, setParsedData] = useState<Array<Record<string, unknown>>>([]);
+  const [uploadOnlyValid, setUploadOnlyValid] = useState(false);
 
   // Load products and teams
   const loadProductsAndTeams = useCallback(async () => {
@@ -194,8 +208,67 @@ export const UploadCasesModal: React.FC<UploadCasesModalProps> = ({
     setUploadedFile(file);
   };
 
-  const handleUploadCases = async () => {
-    if (!uploadedFile || !selectedTeam || !selectedProduct || !user?.tenantId || !user?.id) {
+  const handleValidateFile = async () => {
+    if (!uploadedFile || !user?.tenantId) {
+      showNotification(notificationHelpers.error(
+        'Missing Data',
+        'File or tenant information is missing'
+      ));
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+
+      // Validate Excel file headers first
+      const headerValidation = await excelUtils.validateExcelHeaders(uploadedFile, columnConfigs);
+      if (!headerValidation.valid) {
+        showNotification(notificationHelpers.error(
+          'Header Mismatch',
+          headerValidation.message
+        ));
+        return;
+      }
+
+      // Parse Excel file
+      const excelData = await excelUtils.parseExcelFile(uploadedFile, columnConfigs);
+
+      if (excelData.length === 0) {
+        showNotification(notificationHelpers.error(
+          'No Data',
+          'No valid data found in Excel file'
+        ));
+        return;
+      }
+
+      if (excelData.length > 1000) {
+        showNotification(notificationHelpers.error(
+          'Too Many Rows',
+          'Maximum 1000 cases allowed per upload. Please split your file.'
+        ));
+        return;
+      }
+
+      // Run comprehensive validation
+      const validation = await excelUtils.comprehensiveValidation(excelData, columnConfigs);
+
+      setValidationResult(validation);
+      setParsedData(excelData);
+      setShowUploadValidationModal(true);
+
+    } catch (error) {
+      console.error('Validation error:', error);
+      showNotification(notificationHelpers.error(
+        'Validation Failed',
+        error instanceof Error ? error.message : 'Failed to validate Excel file'
+      ));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUploadCases = async (onlyValid: boolean) => {
+    if (!selectedTeam || !selectedProduct || !user?.tenantId || !user?.id) {
       showNotification(notificationHelpers.error(
         'Missing Data',
         'Please complete all required fields'
@@ -203,167 +276,44 @@ export const UploadCasesModal: React.FC<UploadCasesModalProps> = ({
       return;
     }
 
-    const tenantId = user.tenantId; // Ensure tenantId is defined
+    const tenantId = user.tenantId;
+    setShowUploadValidationModal(false);
 
     try {
       setIsLoading(true);
       setUploadProgress(0);
 
-      // Parse Excel file
-      console.log('Parsing Excel file with column configs:', columnConfigs);
-      console.log('Expected headers from column configs:', columnConfigs.map(c => c.display_name));
+      let dataToUpload = parsedData;
 
-      // Validate Excel file headers before processing
-      try {
-        const validation = await excelUtils.validateExcelHeaders(uploadedFile, columnConfigs);
-        if (!validation.valid) {
-          showNotification(notificationHelpers.error(
-            'Header Mismatch',
-            validation.message
-          ));
-          return;
-        } else {
-          showNotification(notificationHelpers.success(
-            'File Validated',
-            validation.message
-          ));
-        }
-      } catch (error) {
-        showNotification(notificationHelpers.error(
-          'File Validation Failed',
-          error instanceof Error ? error.message : 'Failed to validate Excel file headers'
-        ));
-        return;
-      }
-
-      let excelData = await excelUtils.parseExcelFile(uploadedFile, columnConfigs);
-      console.log('Parsed Excel data - first row sample:', excelData[0]);
-      console.log('Total rows parsed:', excelData.length);
-
-      // Replace empty/null/undefined values with "n/a"
-      let totalReplacements = 0;
-      excelData = excelData.map((row, rowIndex) => {
-        const newRow = { ...row };
-        let rowReplacements = 0;
-
-        // Check each configured column
-        columnConfigs.forEach(config => {
-          const columnName = config.column_name;
-          const currentValue = newRow[columnName];
-
-          // Replace empty values with "n/a"
-          if (currentValue === null || currentValue === undefined ||
-            (typeof currentValue === 'string' && currentValue.trim() === '') ||
-            currentValue === '') {
-            newRow[columnName] = 'n/a';
-            rowReplacements++;
-            totalReplacements++;
-          }
-        });
-
-        if (rowReplacements > 0) {
-          console.log(`Row ${rowIndex + 1}: Replaced ${rowReplacements} empty values with "n/a"`);
-        }
-
-        return newRow;
-      });
-
-      console.log(`Total empty values replaced with "n/a": ${totalReplacements}`);
-      console.log('Processed Excel data - first row sample:', excelData[0]);
-
-      if (excelData.length === 0) {
-        throw new Error('No valid data found in Excel file');
-      }
-
-      if (excelData.length > 1000) {
-        throw new Error('Maximum 1000 cases allowed per upload');
+      // If uploading only valid rows, filter out invalid ones
+      if (onlyValid && validationResult) {
+        const invalidRowNumbers = new Set(
+          validationResult.errors.map(e => e.row - 1)
+        );
+        dataToUpload = parsedData.filter((_, index) => !invalidRowNumbers.has(index));
       }
 
       // Prepare cases for bulk insert
-      const cases = excelData.map(row => {
-        // Extract required fields from row data (using camelCase from excelUtils parser)
-        const loanId = row['loanId'] || row['loan_id'] || '';
-        const customerName = row['customerName'] || row['customer_name'] || '';
+      const cases = dataToUpload.map(row => {
+        const loanId = row['loanId'] || '';
+        const customerName = row['customerName'] || '';
 
         return {
-          tenant_id: tenantId, // Use the validated tenantId
+          tenant_id: tenantId,
           team_id: selectedTeam,
           product_name: selectedProduct,
           loan_id: String(loanId),
           customer_name: String(customerName),
           case_data: row,
           status: 'new' as const,
-          uploaded_by: user.id
+          uploaded_by: user.id,
+          assigned_employee_id: null
         };
       });
 
-      // Validate each row
-      const validationErrors: Array<{ row: number; errors: string[] }> = [];
-      const validCases: typeof cases = [];
-
-      cases.forEach((caseItem, index) => {
-        const errors: string[] = [];
-
-        // Check required fields
-        if (!caseItem.loan_id || caseItem.loan_id.trim() === '') {
-          errors.push('Loan ID is required');
-        }
-        if (!caseItem.customer_name || caseItem.customer_name.trim() === '') {
-          errors.push('Customer Name is required');
-        }
-
-        // Validate using column configurations
-        const validation = excelUtils.validateCaseData(excelData[index], columnConfigs);
-        if (!validation.valid) {
-          console.log(`Row ${index + 1} validation failed:`, validation.errors);
-          errors.push(...validation.errors);
-        }
-
-        if (errors.length === 0) {
-          validCases.push(caseItem);
-        } else {
-          validationErrors.push({
-            row: index + 1,
-            errors
-          });
-        }
-      });
-
-      if (validationErrors.length > 0) {
-        console.error('Validation errors:', validationErrors);
-
-        // Group errors by type for better reporting
-        const errorSummary: { [key: string]: number } = {};
-        validationErrors.forEach(error => {
-          error.errors.forEach((err: string) => {
-            errorSummary[err] = (errorSummary[err] || 0) + 1;
-          });
-        });
-
-        // Show top 5 error types with counts
-        const topErrors = Object.entries(errorSummary)
-          .sort(([, a], [, b]) => b - a)
-          .slice(0, 5)
-          .map(([error, count]) => `${error} (${count} rows)`)
-          .join('\n');
-
-        const errorDetails = validationErrors.slice(0, 2).map(e =>
-          `Row ${e.row}: ${e.errors.join(', ')}`
-        ).join('\n');
-
-        const moreInfo = validationErrors.length > 2 ?
-          `\n...and ${validationErrors.length - 2} more rows with errors` : '';
-
-        showNotification(notificationHelpers.error(
-          'Validation Failed',
-          `Found ${validationErrors.length} rows with validation errors.\n\nMost common issues:\n${topErrors}\n\nFirst few errors:\n${errorDetails}${moreInfo}\n\nPlease check your Excel file matches the template format.`
-        ));
-        return;
-      }
-
       // Upload cases
       setUploadProgress(50);
-      const result = await customerCaseService.createBulkCases(validCases);
+      const result = await customerCaseService.createBulkCases(cases);
       setUploadProgress(100);
       setUploadResult(result);
 
@@ -377,7 +327,7 @@ export const UploadCasesModal: React.FC<UploadCasesModalProps> = ({
       } else {
         showNotification(notificationHelpers.warning(
           'Upload Completed with Errors',
-          `${result.errors.length} cases failed to upload`
+          `Uploaded ${result.totalUploaded} cases, ${result.errors.length} failed`
         ));
       }
     } catch (error) {
@@ -756,11 +706,11 @@ export const UploadCasesModal: React.FC<UploadCasesModalProps> = ({
                   Back
                 </button>
                 <button
-                  onClick={() => setCurrentStep(3)}
-                  disabled={!uploadedFile}
+                  onClick={handleValidateFile}
+                  disabled={!uploadedFile || isLoading}
                   className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg"
                 >
-                  Next: Review & Submit
+                  {isLoading ? 'Validating...' : 'Validate & Continue'}
                 </button>
               </div>
             </div>
@@ -871,7 +821,7 @@ export const UploadCasesModal: React.FC<UploadCasesModalProps> = ({
                   Back
                 </button>
                 <button
-                  onClick={handleUploadCases}
+                  onClick={() => handleUploadCases(false)}
                   disabled={isLoading || !!uploadResult}
                   className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                 >
@@ -890,6 +840,16 @@ export const UploadCasesModal: React.FC<UploadCasesModalProps> = ({
         tenantId={user?.tenantId || ''}
         productName={selectedProduct}
         onConfigurationFixed={handleConfigurationFixed}
+      />
+
+      {/* Upload Validation Modal */}
+      <UploadValidationModal
+        isOpen={showUploadValidationModal}
+        onClose={() => setShowUploadValidationModal(false)}
+        onProceed={handleUploadCases}
+        validationResult={validationResult}
+        previewData={parsedData}
+        columnConfigs={columnConfigs}
       />
     </div>
   );

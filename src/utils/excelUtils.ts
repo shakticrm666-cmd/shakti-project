@@ -294,23 +294,155 @@ export const excelUtils = {
 
     const requiredColumns = ['customerName', 'loanId'];
     requiredColumns.forEach(colName => {
-      if (!row[colName] || String(row[colName]).trim() === '') {
+      const value = row[colName];
+      if (!value || String(value).trim() === '' || String(value).trim().toLowerCase() === 'n/a') {
         const displayName = columns.find(c => c.column_name === colName)?.display_name || colName;
-        errors.push(`${displayName} is required`);
+        errors.push(`${displayName} is required and cannot be empty or 'n/a'`);
       }
     });
 
-    if (row.mobileNo && !/^\d{10}$/.test(String(row.mobileNo).replace(/\D/g, ''))) {
-      errors.push('Invalid mobile number format');
+    if (row.mobileNo) {
+      const mobileStr = String(row.mobileNo).replace(/\D/g, '');
+      if (mobileStr && mobileStr !== '' && !/^\d{10}$/.test(mobileStr)) {
+        errors.push('Mobile number must be 10 digits');
+      }
     }
 
-    if (row.dpd && isNaN(parseInt(String(row.dpd)))) {
-      errors.push('DPD must be a number');
+    if (row.dpd) {
+      const dpdStr = String(row.dpd).trim();
+      if (dpdStr && dpdStr !== '' && (isNaN(parseInt(dpdStr)) || parseInt(dpdStr) < 0)) {
+        errors.push('DPD must be a non-negative number');
+      }
     }
+
+    const numericFields = ['loanAmount', 'outstandingAmount', 'posAmount', 'emiAmount', 'pendingDues', 'lastPaidAmount'];
+    numericFields.forEach(field => {
+      if (row[field]) {
+        const valueStr = String(row[field]).trim().replace(/,/g, '');
+        if (valueStr && valueStr !== '' && valueStr.toLowerCase() !== 'n/a' && isNaN(parseFloat(valueStr))) {
+          const displayName = columns.find(c => c.column_name === field)?.display_name || field;
+          errors.push(`${displayName} must be a valid number`);
+        }
+      }
+    });
+
+    const dateFields = ['sanctionDate', 'lastPaidDate'];
+    dateFields.forEach(field => {
+      if (row[field]) {
+        const dateStr = String(row[field]).trim();
+        if (dateStr && dateStr !== '' && dateStr.toLowerCase() !== 'n/a') {
+          const date = new Date(dateStr);
+          if (isNaN(date.getTime())) {
+            const displayName = columns.find(c => c.column_name === field)?.display_name || field;
+            errors.push(`${displayName} must be a valid date`);
+          }
+        }
+      }
+    });
 
     return {
       valid: errors.length === 0,
       errors
+    };
+  },
+
+  async comprehensiveValidation(
+    rows: ExcelRow[],
+    columns: ColumnConfiguration[]
+  ): Promise<{
+    totalRows: number;
+    validRows: number;
+    invalidRows: number;
+    errors: Array<{ row: number; column: string; value: string; error: string }>;
+    duplicateLoanIds: Array<{ loanId: string; rows: number[] }>;
+    warnings: Array<{ row: number; column: string; message: string }>;
+  }> {
+    const errors: Array<{ row: number; column: string; value: string; error: string }> = [];
+    const warnings: Array<{ row: number; column: string; message: string }> = [];
+    const loanIdMap = new Map<string, number[]>();
+    let validRowCount = 0;
+
+    rows.forEach((row, index) => {
+      const rowNumber = index + 1;
+      const rowValidation = this.validateCaseData(row, columns);
+
+      if (!rowValidation.valid) {
+        rowValidation.errors.forEach(error => {
+          let column = 'Unknown';
+          let value = '';
+
+          if (error.includes('EMPID')) {
+            column = 'EMPID';
+            value = String(row.EMPID || '');
+          } else if (error.includes('Customer Name') || error.includes('customerName')) {
+            column = 'Customer Name';
+            value = String(row.customerName || '');
+          } else if (error.includes('Loan ID') || error.includes('loanId')) {
+            column = 'Loan ID';
+            value = String(row.loanId || '');
+          } else if (error.includes('Mobile')) {
+            column = 'Mobile Number';
+            value = String(row.mobileNo || '');
+          } else if (error.includes('DPD')) {
+            column = 'DPD';
+            value = String(row.dpd || '');
+          } else {
+            const fieldMatch = error.match(/^([^:]+)/);
+            if (fieldMatch) {
+              column = fieldMatch[1];
+            }
+          }
+
+          errors.push({
+            row: rowNumber,
+            column,
+            value,
+            error
+          });
+        });
+      } else {
+        validRowCount++;
+      }
+
+      const loanId = String(row.loanId || '').trim();
+      if (loanId && loanId.toLowerCase() !== 'n/a') {
+        if (!loanIdMap.has(loanId)) {
+          loanIdMap.set(loanId, []);
+        }
+        loanIdMap.get(loanId)!.push(rowNumber);
+      }
+
+      if (!row.mobileNo || String(row.mobileNo).trim() === '' || String(row.mobileNo).trim().toLowerCase() === 'n/a') {
+        warnings.push({
+          row: rowNumber,
+          column: 'Mobile Number',
+          message: 'Mobile number is missing or empty'
+        });
+      }
+
+      if (!row.address || String(row.address).trim() === '' || String(row.address).trim().toLowerCase() === 'n/a') {
+        warnings.push({
+          row: rowNumber,
+          column: 'Address',
+          message: 'Address is missing or empty'
+        });
+      }
+    });
+
+    const duplicateLoanIds: Array<{ loanId: string; rows: number[] }> = [];
+    loanIdMap.forEach((rows, loanId) => {
+      if (rows.length > 1) {
+        duplicateLoanIds.push({ loanId, rows });
+      }
+    });
+
+    return {
+      totalRows: rows.length,
+      validRows: validRowCount,
+      invalidRows: rows.length - validRowCount,
+      errors,
+      duplicateLoanIds,
+      warnings
     };
   },
 
