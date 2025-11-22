@@ -271,7 +271,7 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
                       const knownKeys = [
                         'customerName', 'loanId', 'mobileNo', 'employmentType', 'loanAmount', 'address', 'city', 'state', 'pincode',
                         'dpd', 'pos', 'emi', 'totalOutstanding', 'paymentLink', 'lastPaymentDate', 'lastPaymentAmount', 'loanCreatedAt',
-                        'empId', 'id', 'remarks'
+                        'empId', 'id', 'remarks', 'outstandingAmount', 'emiAmount', 'posAmount', 'caseStatus'
                       ].map(normalizeKey);
 
                       return !knownKeys.includes(normalizeKey(key));
