@@ -107,9 +107,7 @@ export const TelecallerDashboard: React.FC<TelecallerDashboardProps> = ({ user, 
   const loadDashboardData = useCallback(async () => {
     try {
       setIsLoading(true);
-      console.log('Loading cases for telecaller:', user.empId, 'tenant:', user.tenantId);
       const cases = await customerCaseService.getCasesByTelecaller(user.tenantId!, user!.empId);
-      console.log('Loaded cases from service:', cases);
       setCustomerCases(cases);
 
       // Calculate metrics from real data
@@ -363,12 +361,12 @@ export const TelecallerDashboard: React.FC<TelecallerDashboardProps> = ({ user, 
                       address: c.address || getValue(['address', 'Address']) || '',
                       email: c.email || getValue(['email', 'Email']) || '',
                       remarks: c.remarks || '',
+                      total_collected_amount: c.total_collected_amount || 0,
                       // Include all fields from case_data for complete details
                       ...details,
                       // Include all fields from custom_fields if they exist
                       ...(c.custom_fields || {})
                     };
-                    console.log('Mapped case:', c, 'to:', mappedCase);
                     return mappedCase;
                   })}
                   columnConfigs={[

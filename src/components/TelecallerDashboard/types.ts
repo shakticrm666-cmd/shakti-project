@@ -50,6 +50,7 @@ export interface CustomerCase {
   loanType: string;
   remarks: string;
   caseStatus?: string;
+  total_collected_amount?: number;
 }
 
 export interface ColumnConfig {
