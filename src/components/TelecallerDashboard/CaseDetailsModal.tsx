@@ -215,9 +215,6 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
         notes
       );
 
-      console.log('Received updated case after payment:', updatedCase);
-      console.log('Updated total_collected_amount:', updatedCase.total_collected_amount);
-
       setCurrentCaseData(updatedCase);
 
       const customerName = currentCaseData.customer_name || currentCaseData.customerName || 'Customer';
@@ -311,7 +308,6 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
                       </div>
                       <div className="text-sm font-bold text-green-700">
                         ₹{(currentCaseData?.total_collected_amount || 0).toLocaleString('en-IN')}
-                        {console.log('Rendering total collected:', currentCaseData?.total_collected_amount)}
                       </div>
                     </div>
                   </div>

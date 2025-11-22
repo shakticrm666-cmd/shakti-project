@@ -113,7 +113,7 @@ export const customerCaseService = {
           pending_dues, dpd, branch_name, address, city, state, pincode,
           sanction_date, last_paid_date, last_paid_amount, payment_link,
           remarks, custom_fields, case_data, product_name, case_status, status, priority,
-          uploaded_by, created_at, updated_at
+          uploaded_by, created_at, updated_at, total_collected_amount
         `)
         .eq('tenant_id', tenantId)
         .eq('telecaller_id', employee.id)
@@ -137,7 +137,7 @@ export const customerCaseService = {
             pending_dues, dpd, branch_name, address, city, state, pincode,
             sanction_date, last_paid_date, last_paid_amount, payment_link,
             remarks, custom_fields, case_data, product_name, case_status, status, priority,
-            uploaded_by, created_at, updated_at
+            uploaded_by, created_at, updated_at, total_collected_amount
           `)
           .eq('tenant_id', tenantId)
           .eq('assigned_employee_id', empId)
@@ -639,9 +639,6 @@ export const customerCaseService = {
       console.error('Error updating case with payment:', updateError);
       throw new Error('Failed to update case');
     }
-
-    console.log('Updated case after payment:', updatedCase);
-    console.log('Total collected amount:', updatedCase.total_collected_amount);
 
     return updatedCase;
   }
