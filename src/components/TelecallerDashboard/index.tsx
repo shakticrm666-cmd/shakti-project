@@ -686,6 +686,8 @@ export const TelecallerDashboard: React.FC<TelecallerDashboardProps> = ({ user, 
           setSelectedCase(null);
         }}
         caseData={selectedCase}
+        user={user}
+        onCaseUpdated={loadCases}
       />
 
       {/* Call Log Modal */}

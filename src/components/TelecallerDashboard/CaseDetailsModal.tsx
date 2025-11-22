@@ -1,20 +1,153 @@
-import React from 'react';
-import { X, User, Phone, MapPin, Calendar, DollarSign, FileText, CheckCircle, MessageSquare } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, User, Phone, MapPin, Calendar, DollarSign, FileText, CheckCircle, MessageSquare, Clock, History } from 'lucide-react';
 import { CustomerCase } from './types';
-import { customerCaseService } from '../../services/customerCaseService';
+import { customerCaseService, CallLog } from '../../services/customerCaseService';
+import { useNotification, notificationHelpers } from '../shared/Notification';
 
 interface CaseDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   caseData: CustomerCase | null;
+  user: {
+    id: string;
+    empId: string;
+    tenantId?: string;
+  };
+  onCaseUpdated?: () => void;
 }
 
-export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onClose, caseData }) => {
-  const [showLogCallModal, setShowLogCallModal] = React.useState(false);
-  const [selectedCallStatus, setSelectedCallStatus] = React.useState('');
+export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onClose, caseData, user, onCaseUpdated }) => {
+  const { showNotification } = useNotification();
+  const [showLogCallModal, setShowLogCallModal] = useState(false);
+  const [callStatus, setCallStatus] = useState('');
+  const [ptpDate, setPtpDate] = useState('');
+  const [ptpTime, setPtpTime] = useState('');
+  const [remarks, setRemarks] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [callLogs, setCallLogs] = useState<(CallLog & { employee_name?: string })[]>([]);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
 
   const handleStatusUpdate = () => {
     setShowLogCallModal(true);
+  };
+
+  const fetchCallLogs = async () => {
+    if (!caseData?.id) return;
+
+    setIsLoadingLogs(true);
+    try {
+      const logs = await customerCaseService.getCallLogsWithEmployeeDetails(caseData.id);
+      setCallLogs(logs.slice(0, 5));
+    } catch (error) {
+      console.error('Error fetching call logs:', error);
+    } finally {
+      setIsLoadingLogs(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && caseData?.id) {
+      fetchCallLogs();
+    }
+  }, [isOpen, caseData?.id]);
+
+  const handleStatusUpdateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!caseData?.id || !user?.id) {
+      showNotification(notificationHelpers.error('Error', 'Missing case or user information'));
+      return;
+    }
+
+    if (!callStatus || !remarks.trim()) {
+      showNotification(notificationHelpers.error('Validation Error', 'Please fill in all required fields'));
+      return;
+    }
+
+    if ((callStatus === 'PTP' || callStatus === 'FUTURE_PTP') && !ptpDate) {
+      showNotification(notificationHelpers.error('Validation Error', 'PTP Date is required for Promise to Pay'));
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const ptpDateTime = (ptpDate && ptpTime)
+        ? `${ptpDate}T${ptpTime}:00`
+        : (ptpDate ? `${ptpDate}T00:00:00` : undefined);
+
+      await customerCaseService.addCallLog({
+        case_id: caseData.id,
+        employee_id: user.id,
+        call_status: callStatus,
+        ptp_date: ptpDateTime,
+        call_notes: remarks,
+        call_duration: undefined,
+        amount_collected: undefined
+      });
+
+      await customerCaseService.updateCase(caseData.id, {
+        status: 'in_progress',
+        updated_at: new Date().toISOString()
+      });
+
+      showNotification(notificationHelpers.success('Success', 'Status update saved successfully'));
+
+      setCallStatus('');
+      setPtpDate('');
+      setPtpTime('');
+      setRemarks('');
+      setShowLogCallModal(false);
+
+      await fetchCallLogs();
+
+      if (onCaseUpdated) {
+        onCaseUpdated();
+      }
+    } catch (error) {
+      console.error('Error saving status update:', error);
+      showNotification(notificationHelpers.error('Error', 'Failed to save status update'));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const formatDateTime = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString('en-IN', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const getCallStatusBadge = (status: string) => {
+    const statusConfig: Record<string, { label: string; color: string }> = {
+      'WN': { label: 'Wrong Number', color: 'bg-red-100 text-red-700' },
+      'SW': { label: 'Switched Off', color: 'bg-yellow-100 text-yellow-700' },
+      'RNR': { label: 'Ringing No Response', color: 'bg-orange-100 text-orange-700' },
+      'BUSY': { label: 'Busy', color: 'bg-amber-100 text-amber-700' },
+      'CALL_BACK': { label: 'Call Back', color: 'bg-blue-100 text-blue-700' },
+      'PTP': { label: 'Promise to Pay', color: 'bg-green-100 text-green-700' },
+      'FUTURE_PTP': { label: 'Future PTP', color: 'bg-teal-100 text-teal-700' },
+      'BPTP': { label: 'Broken PTP', color: 'bg-red-100 text-red-700' },
+      'RTP': { label: 'Refuse to Pay', color: 'bg-red-100 text-red-700' },
+      'NC': { label: 'No Contact', color: 'bg-gray-100 text-gray-700' },
+      'CD': { label: 'Call Disconnected', color: 'bg-gray-100 text-gray-700' },
+      'INC': { label: 'Incoming Call', color: 'bg-purple-100 text-purple-700' }
+    };
+
+    const config = statusConfig[status] || { label: status, color: 'bg-gray-100 text-gray-700' };
+    return (
+      <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${config.color}`}>
+        {config.label}
+      </span>
+    );
   };
 
   // Helper function to get value from either direct property or case_data/custom_fields
@@ -299,6 +432,67 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
                 </div>
               </div>
             </div>
+
+            {/* Box 4: Status Update Log */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-lg min-h-[300px]">
+              <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 px-6 py-4 rounded-t-xl">
+                <h4 className="text-lg font-semibold text-white flex items-center">
+                  <History className="w-5 h-5 mr-3" />
+                  Status Update Log (Last 5)
+                </h4>
+              </div>
+              <div className="p-6 rounded-b-xl">
+                {isLoadingLogs ? (
+                  <div className="flex items-center justify-center h-40">
+                    <svg className="animate-spin h-8 w-8 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </div>
+                ) : callLogs.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm">No status updates yet</p>
+                    <p className="text-xs mt-1">Status updates will appear here after logging calls</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {callLogs.map((log, index) => (
+                      <div key={log.id || index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            {getCallStatusBadge(log.call_status)}
+                          </div>
+                          <div className="flex items-center text-xs text-gray-500">
+                            <Clock className="w-3 h-3 mr-1" />
+                            {log.created_at ? formatDateTime(log.created_at) : 'N/A'}
+                          </div>
+                        </div>
+
+                        {log.call_notes && (
+                          <div className="mt-2">
+                            <p className="text-xs font-medium text-gray-600 mb-1">Remarks:</p>
+                            <p className="text-sm text-gray-900">{log.call_notes}</p>
+                          </div>
+                        )}
+
+                        {log.ptp_date && (
+                          <div className="mt-2 flex items-center text-xs">
+                            <Calendar className="w-3 h-3 mr-1 text-green-600" />
+                            <span className="font-medium text-green-600">PTP Date: {formatDateTime(log.ptp_date)}</span>
+                          </div>
+                        )}
+
+                        <div className="mt-2 flex items-center text-xs text-gray-500">
+                          <User className="w-3 h-3 mr-1" />
+                          <span>{log.employee_name || `Employee ID: ${log.employee_id}`}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -332,7 +526,7 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
               </button>
             </div>
 
-            <form className="p-6 overflow-y-auto max-h-[calc(90vh-160px)]">
+            <form onSubmit={handleStatusUpdateSubmit} className="p-6 overflow-y-auto max-h-[calc(90vh-160px)]">
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -340,9 +534,16 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
                   </label>
                   <select
                     required
-                    value={selectedCallStatus}
-                    onChange={(e) => setSelectedCallStatus(e.target.value)}
+                    value={callStatus}
+                    onChange={(e) => {
+                      setCallStatus(e.target.value);
+                      if (e.target.value !== 'PTP' && e.target.value !== 'FUTURE_PTP') {
+                        setPtpDate('');
+                        setPtpTime('');
+                      }
+                    }}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    disabled={isSubmitting}
                   >
                     <option value="">Select Status</option>
                     <option value="WN">WN (Wrong Number)</option>
@@ -360,8 +561,7 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
                   </select>
                 </div>
 
-                {/* PTP Date and Time - Show only when PTP is selected */}
-                {selectedCallStatus === 'PTP' && (
+                {(callStatus === 'PTP' || callStatus === 'FUTURE_PTP') && (
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -370,18 +570,23 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
                       <input
                         type="date"
                         required
+                        value={ptpDate}
+                        onChange={(e) => setPtpDate(e.target.value)}
                         min={new Date().toISOString().split('T')[0]}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        disabled={isSubmitting}
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        PTP Time <span className="text-red-500">*</span>
+                        PTP Time
                       </label>
                       <input
                         type="time"
-                        required
+                        value={ptpTime}
+                        onChange={(e) => setPtpTime(e.target.value)}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        disabled={isSubmitting}
                       />
                     </div>
                   </div>
@@ -394,9 +599,12 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
                   </label>
                   <textarea
                     required
+                    value={remarks}
+                    onChange={(e) => setRemarks(e.target.value)}
                     rows={4}
                     placeholder="Enter call details, customer response, and any important notes..."
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -404,16 +612,34 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
               <div className="mt-6 flex justify-end space-x-3">
                 <button
                   type="button"
-                  onClick={() => setShowLogCallModal(false)}
+                  onClick={() => {
+                    setShowLogCallModal(false);
+                    setCallStatus('');
+                    setPtpDate('');
+                    setPtpTime('');
+                    setRemarks('');
+                  }}
                   className="px-6 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
+                  disabled={isSubmitting}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                  className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center space-x-2"
+                  disabled={isSubmitting}
                 >
-                  Save Call Log
+                  {isSubmitting ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <span>Save Status Update</span>
+                  )}
                 </button>
               </div>
             </form>

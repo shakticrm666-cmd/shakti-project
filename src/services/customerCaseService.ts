@@ -257,6 +257,27 @@ export const customerCaseService = {
     return data || [];
   },
 
+  async getCallLogsWithEmployeeDetails(caseId: string): Promise<(CallLog & { employee_name?: string })[]> {
+    const { data, error } = await supabase
+      .from(CASE_CALL_LOG_TABLE)
+      .select(`
+        *,
+        employees(name)
+      `)
+      .eq('case_id', caseId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching call logs with employee details:', error);
+      throw new Error('Failed to fetch call logs with employee details');
+    }
+
+    return (data || []).map((log: any) => ({
+      ...log,
+      employee_name: log.employees?.name || 'Unknown'
+    }));
+  },
+
   async getCaseStatsByEmployee(tenantId: string, employeeId: string): Promise<{
     totalCases: number;
     pendingCases: number;
