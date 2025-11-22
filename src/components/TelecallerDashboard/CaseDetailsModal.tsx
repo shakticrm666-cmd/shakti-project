@@ -307,7 +307,7 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
                         Total Collected
                       </div>
                       <div className="text-sm font-bold text-green-700">
-                        ₹{((currentCaseData?.total_collected_amount || 0)).toLocaleString('en-IN')}
+                        ₹{(currentCaseData?.total_collected_amount || 0).toLocaleString('en-IN')}
                       </div>
                     </div>
                   </div>
