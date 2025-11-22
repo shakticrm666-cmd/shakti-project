@@ -3,6 +3,8 @@ import { X, User, Phone, MapPin, Calendar, DollarSign, FileText, CheckCircle, Me
 import { CustomerCase } from './types';
 import { customerCaseService, CallLog } from '../../services/customerCaseService';
 import { useNotification, notificationHelpers } from '../shared/Notification';
+import { PaymentReceivedModal } from './PaymentReceivedModal';
+import { useCelebration } from '../../contexts/CelebrationContext';
 
 interface CaseDetailsModalProps {
   isOpen: boolean;
@@ -18,7 +20,9 @@ interface CaseDetailsModalProps {
 
 export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onClose, caseData, user, onCaseUpdated }) => {
   const { showNotification } = useNotification();
+  const { triggerCelebration } = useCelebration();
   const [showLogCallModal, setShowLogCallModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [callStatus, setCallStatus] = useState('');
   const [ptpDate, setPtpDate] = useState('');
   const [ptpTime, setPtpTime] = useState('');
@@ -26,6 +30,7 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [callLogs, setCallLogs] = useState<(CallLog & { employee_name?: string })[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+  const [currentCaseData, setCurrentCaseData] = useState(caseData);
 
   const handleStatusUpdate = () => {
     setShowLogCallModal(true);
@@ -49,6 +54,7 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
 
   useEffect(() => {
     if (isOpen && caseData?.id) {
+      setCurrentCaseData(caseData);
       fetchCallLogs();
     }
   }, [isOpen, caseData?.id]);
@@ -192,31 +198,46 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
     return '';
   };
 
-  const handlePaymentReceived = async () => {
-    if (!caseData) return;
+  const handlePaymentReceived = () => {
+    setShowPaymentModal(true);
+  };
+
+  const handlePaymentSubmit = async (amount: number, notes: string) => {
+    if (!currentCaseData?.id || !user?.id) {
+      throw new Error('Missing case or user information');
+    }
 
     try {
-      // Update case status to 'closed' or 'paid'
-      await customerCaseService.updateCase(caseData.id, {
-        case_status: 'closed',
-        status: 'closed'
+      const updatedCase = await customerCaseService.recordPayment(
+        currentCaseData.id,
+        user.id,
+        amount,
+        notes
+      );
+
+      setCurrentCaseData(updatedCase);
+
+      const customerName = currentCaseData.customer_name || currentCaseData.customerName || 'Customer';
+
+      triggerCelebration({
+        employeeName: user.empId,
+        amount: amount,
+        customerName: customerName
       });
 
-      // Log the payment received
-      await customerCaseService.addCallLog({
-        case_id: caseData.id,
-        employee_id: 'system', // Or get from auth context
-        call_status: 'PAYMENT_RECEIVED',
-        call_notes: 'Payment received - case closed',
-        amount_collected: String(getValue('outstandingAmount'))
-      });
+      showNotification(notificationHelpers.success(
+        'Payment Recorded!',
+        `Successfully recorded payment of ₹${amount.toLocaleString('en-IN')}`
+      ));
 
-      // Close the modal and show success
-      onClose();
-      // You might want to add a notification here
+      await fetchCallLogs();
+
+      if (onCaseUpdated) {
+        onCaseUpdated();
+      }
     } catch (error) {
-      console.error('Error updating payment status:', error);
-      // Handle error - maybe show notification
+      console.error('Error recording payment:', error);
+      throw error;
     }
   };
 
@@ -241,8 +262,8 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
           <div className="space-y-6">
             {/* Box 1: Customer Information */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-lg min-h-[300px]">
-              <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4 rounded-t-xl">
+            <div className="bg-white rounded-xl border-2 border-blue-200 shadow-lg min-h-[300px]">
+              <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4 rounded-t-xl border-b-4 border-blue-700">
                 <h4 className="text-lg font-semibold text-white flex items-center">
                   <User className="w-5 h-5 mr-3" />
                   Customer Information
@@ -277,6 +298,19 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
                       );
                     });
                   })()}
+
+                  {/* Total Collected Amount - Special Highlight */}
+                  <div className="flex items-center space-x-3 p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border-2 border-green-200">
+                    <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium text-green-700 uppercase tracking-wide mb-1">
+                        Total Collected
+                      </div>
+                      <div className="text-sm font-bold text-green-700">
+                        ₹{((currentCaseData?.total_collected_amount || 0)).toLocaleString('en-IN')}
+                      </div>
+                    </div>
+                  </div>
 
 
                   {/* Address Section - Always Show */}
@@ -658,6 +692,13 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
           </div>
         </div>
       )}
+
+      <PaymentReceivedModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        caseData={currentCaseData || caseData}
+        onSubmit={handlePaymentSubmit}
+      />
     </div>
   );
 };

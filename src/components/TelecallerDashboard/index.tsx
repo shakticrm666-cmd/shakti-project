@@ -28,6 +28,8 @@ import { EditProfileModal } from './EditProfileModal';
 import { CaseDetailsModal } from './CaseDetailsModal';
 import { CallLogModal, CallLogData } from './CallLogModal';
 import { StatusUpdateModal } from './StatusUpdateModal';
+import { CelebrationProvider } from '../../contexts/CelebrationContext';
+import { PaymentCelebration } from './PaymentCelebration';
 import { CaseFieldModal } from './CaseFieldModal';
 import { CustomerCase as DashboardCustomerCase } from './types';
 
@@ -145,7 +147,9 @@ export const TelecallerDashboard: React.FC<TelecallerDashboardProps> = ({ user, 
 
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <CelebrationProvider tenantId={user.tenantId} teamId={user.teamId}>
+      <PaymentCelebration />
+      <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
       <div className="w-80 bg-white shadow-lg flex flex-col">
         <div className="flex items-center justify-center border-b border-gray-300 bg-white h-20">
@@ -764,7 +768,8 @@ export const TelecallerDashboard: React.FC<TelecallerDashboardProps> = ({ user, 
           }
         }}
       />
-    </div>
+      </div>
+    </CelebrationProvider>
   );
 };
 

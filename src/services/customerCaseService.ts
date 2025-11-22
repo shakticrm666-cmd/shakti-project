@@ -42,6 +42,7 @@ export interface CustomerCase {
   status?: 'new' | 'assigned' | 'in_progress' | 'closed';
   priority?: string;
   uploaded_by?: string;
+  total_collected_amount?: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -581,5 +582,64 @@ export const customerCaseService = {
       inProgress: cases.filter(c => c.status === 'in_progress').length,
       closed: cases.filter(c => c.status === 'closed').length
     };
+  },
+
+  async recordPayment(caseId: string, employeeId: string, amount: number, notes: string): Promise<CustomerCase> {
+    const { data: currentCase, error: fetchError } = await supabase
+      .from(CUSTOMER_CASE_TABLE)
+      .select('*, total_collected_amount, outstanding_amount, loan_amount')
+      .eq('id', caseId)
+      .single();
+
+    if (fetchError || !currentCase) {
+      console.error('Error fetching case for payment:', fetchError);
+      throw new Error('Failed to fetch case details');
+    }
+
+    const currentCollected = currentCase.total_collected_amount || 0;
+    const newTotalCollected = currentCollected + amount;
+
+    const outstandingAmount = parseFloat(currentCase.outstanding_amount || '0');
+    const remainingAmount = outstandingAmount - newTotalCollected;
+    const shouldCloseCase = remainingAmount <= 0;
+
+    const { error: logError } = await supabase
+      .from(CASE_CALL_LOG_TABLE)
+      .insert({
+        case_id: caseId,
+        employee_id: employeeId,
+        call_status: 'PAYMENT_RECEIVED',
+        call_notes: notes,
+        amount_collected: String(amount)
+      });
+
+    if (logError) {
+      console.error('Error logging payment:', logError);
+      throw new Error('Failed to record payment log');
+    }
+
+    const updateData: Partial<CustomerCase> = {
+      total_collected_amount: newTotalCollected,
+      updated_at: new Date().toISOString()
+    };
+
+    if (shouldCloseCase) {
+      updateData.case_status = 'closed';
+      updateData.status = 'closed';
+    }
+
+    const { data: updatedCase, error: updateError } = await supabase
+      .from(CUSTOMER_CASE_TABLE)
+      .update(updateData)
+      .eq('id', caseId)
+      .select()
+      .single();
+
+    if (updateError || !updatedCase) {
+      console.error('Error updating case with payment:', updateError);
+      throw new Error('Failed to update case');
+    }
+
+    return updatedCase;
   }
 };
