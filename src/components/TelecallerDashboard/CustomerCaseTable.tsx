@@ -10,6 +10,9 @@ interface CustomerCaseTableProps {
   isLoading: boolean;
   tenantId: string;
   empId: string;
+  casesWithPendingFollowups?: string[];
+  showPendingFollowupsOnly?: boolean;
+  onClearFollowupFilter?: () => void;
   onViewDetails: (caseData: CustomerCase) => void;
   onCallCustomer: (caseData: CustomerCase) => void;
   onUpdateStatus?: (caseData: CustomerCase) => void;
@@ -22,6 +25,9 @@ const CustomerCaseTable: React.FC<CustomerCaseTableProps> = ({
   isLoading,
   tenantId,
   empId,
+  casesWithPendingFollowups = [],
+  showPendingFollowupsOnly = false,
+  onClearFollowupFilter,
   onViewDetails,
   onCallCustomer,
 
@@ -65,6 +71,11 @@ const CustomerCaseTable: React.FC<CustomerCaseTableProps> = ({
   const filteredCases = useMemo(() => {
     let cases = filterCases(customerCases, searchTerm);
 
+    // Apply pending follow-ups filter
+    if (showPendingFollowupsOnly && casesWithPendingFollowups.length > 0) {
+      cases = cases.filter(c => casesWithPendingFollowups.includes(c.id as string));
+    }
+
     // Apply DPD filter
     if (dpdFilter !== 'all') {
       cases = cases.filter(c => {
@@ -98,7 +109,7 @@ const CustomerCaseTable: React.FC<CustomerCaseTableProps> = ({
     });
 
     return cases;
-  }, [customerCases, searchTerm, dpdFilter, sortBy, sortOrder]);
+  }, [customerCases, searchTerm, dpdFilter, sortBy, sortOrder, showPendingFollowupsOnly, casesWithPendingFollowups]);
 
   const totalPages = getTotalPages(filteredCases.length, itemsPerPage);
   const paginatedCases = useMemo(() =>
@@ -331,6 +342,27 @@ const CustomerCaseTable: React.FC<CustomerCaseTableProps> = ({
 
         {/* Search and Filter Bar */}
         <div className="mt-4 space-y-4">
+          {showPendingFollowupsOnly && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <AlertTriangle className="w-5 h-5 text-orange-600" />
+                <span className="text-sm font-medium text-orange-800">
+                  Showing only cases with pending follow-ups ({filteredCases.length} cases)
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  if (onClearFollowupFilter) {
+                    onClearFollowupFilter();
+                  }
+                }}
+                className="px-3 py-1 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700 transition-colors"
+              >
+                Clear Filter
+              </button>
+            </div>
+          )}
+
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center space-x-4">
               <input

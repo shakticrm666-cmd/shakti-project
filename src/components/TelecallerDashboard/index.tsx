@@ -99,6 +99,8 @@ export const TelecallerDashboard: React.FC<TelecallerDashboardProps> = ({ user, 
   const [isCallLogOpen, setIsCallLogOpen] = useState(false);
   const [isStatusUpdateOpen, setIsStatusUpdateOpen] = useState(false);
   const [isCaseFieldModalOpen, setIsCaseFieldModalOpen] = useState(false);
+  const [casesWithPendingFollowups, setCasesWithPendingFollowups] = useState<string[]>([]);
+  const [showPendingFollowupsOnly, setShowPendingFollowupsOnly] = useState(false);
 
   const { showNotification } = useNotification();
 
@@ -127,6 +129,9 @@ export const TelecallerDashboard: React.FC<TelecallerDashboardProps> = ({ user, 
 
       setFollowUpData(dashboardMetrics.followUps);
       setCaseStatusMetrics(dashboardMetrics.caseStatus);
+
+      const casesWithFollowups = await customerCaseService.getCasesWithPendingFollowups(user.tenantId!, user.empId);
+      setCasesWithPendingFollowups(casesWithFollowups);
 
       const assignedCases = cases.length;
       const pendingFollowups = dashboardMetrics.followUps.todaysFollowUps + dashboardMetrics.followUps.upcomingFollowUps;
@@ -299,7 +304,13 @@ export const TelecallerDashboard: React.FC<TelecallerDashboardProps> = ({ user, 
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                  <div
+                    className="bg-white rounded-xl shadow-sm p-6 border border-gray-200 cursor-pointer hover:shadow-lg hover:border-orange-300 transition-all duration-200"
+                    onClick={() => {
+                      setActiveSection('cases');
+                      setShowPendingFollowupsOnly(true);
+                    }}
+                  >
                     <div className="flex items-center">
                       <div className="bg-orange-500 rounded-lg p-3 mr-4">
                         <AlertCircle className="w-6 h-6 text-white" />
@@ -343,6 +354,9 @@ export const TelecallerDashboard: React.FC<TelecallerDashboardProps> = ({ user, 
                 </div>
 
                 <CustomerCaseTable
+                  casesWithPendingFollowups={casesWithPendingFollowups}
+                  showPendingFollowupsOnly={showPendingFollowupsOnly}
+                  onClearFollowupFilter={() => setShowPendingFollowupsOnly(false)}
                   customerCases={customerCases.map(c => {
                     const details = c.case_data || {};
 

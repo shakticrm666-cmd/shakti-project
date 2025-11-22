@@ -877,5 +877,76 @@ export const customerCaseService = {
         caseStatus: { total: 0, new: 0, assigned: 0, inProgress: 0, closed: 0 }
       };
     }
+  },
+
+  async getCasesWithPendingFollowups(tenantId: string, empId: string): Promise<string[]> {
+    try {
+      const { data: employee, error: employeeError } = await supabase
+        .from(EMPLOYEE_TABLE)
+        .select('id, emp_id, name')
+        .eq('tenant_id', tenantId)
+        .eq('emp_id', empId)
+        .eq('role', 'Telecaller')
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (employeeError || !employee) {
+        console.error('Error finding telecaller employee:', employeeError);
+        return [];
+      }
+
+      const { data: cases, error: casesError } = await supabase
+        .from(CUSTOMER_CASE_TABLE)
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('telecaller_id', employee.id);
+
+      if (casesError || !cases || cases.length === 0) {
+        return [];
+      }
+
+      const caseIds = cases.map(c => c.id);
+
+      const { data: allLogs, error: logsError } = await supabase
+        .from(CASE_CALL_LOG_TABLE)
+        .select('case_id, ptp_date, created_at')
+        .in('case_id', caseIds);
+
+      if (logsError || !allLogs) {
+        return [];
+      }
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayTime = today.getTime();
+
+      const ptpMap = new Map();
+      allLogs.forEach(log => {
+        if (log.ptp_date) {
+          const existingLog = ptpMap.get(log.case_id);
+          if (!existingLog || new Date(log.created_at) > new Date(existingLog.created_at)) {
+            ptpMap.set(log.case_id, log);
+          }
+        }
+      });
+
+      const casesWithPendingPTP: string[] = [];
+      ptpMap.forEach((log, caseId) => {
+        if (log.ptp_date) {
+          const ptpDate = new Date(log.ptp_date);
+          ptpDate.setHours(0, 0, 0, 0);
+          const ptpTime = ptpDate.getTime();
+
+          if (ptpTime >= todayTime) {
+            casesWithPendingPTP.push(caseId);
+          }
+        }
+      });
+
+      return casesWithPendingPTP;
+    } catch (error) {
+      console.error('Error in getCasesWithPendingFollowups:', error);
+      return [];
+    }
   }
 };
