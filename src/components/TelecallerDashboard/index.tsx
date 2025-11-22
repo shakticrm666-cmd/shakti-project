@@ -344,13 +344,6 @@ export const TelecallerDashboard: React.FC<TelecallerDashboardProps> = ({ user, 
                     <h3 className="text-lg font-semibold text-gray-900">My Cases</h3>
                     <p className="text-sm text-gray-600 mt-1">Manage and track your assigned loan recovery cases</p>
                   </div>
-                  <button
-                    onClick={() => setIsCaseFieldModalOpen(true)}
-                    className="flex items-center px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-                  >
-                    <AlertTriangle className="w-4 h-4 mr-2" />
-                    Manage Empty Fields
-                  </button>
                 </div>
 
                 <CustomerCaseTable
