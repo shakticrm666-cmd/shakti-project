@@ -435,10 +435,13 @@ export const customerCaseService = {
           unassigned++;
         }
 
-        // Insert the case
+        // Use upsert to insert or update based on tenant_id + loan_id
         const { error } = await supabase
           .from(CUSTOMER_CASE_TABLE)
-          .insert([caseData]);
+          .upsert([caseData], {
+            onConflict: 'tenant_id,loan_id',
+            ignoreDuplicates: false
+          });
 
         if (error) {
           errors.push({
