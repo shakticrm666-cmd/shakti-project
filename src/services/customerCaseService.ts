@@ -632,13 +632,16 @@ export const customerCaseService = {
       .from(CUSTOMER_CASE_TABLE)
       .update(updateData)
       .eq('id', caseId)
-      .select()
+      .select('*, total_collected_amount')
       .single();
 
     if (updateError || !updatedCase) {
       console.error('Error updating case with payment:', updateError);
       throw new Error('Failed to update case');
     }
+
+    console.log('Updated case after payment:', updatedCase);
+    console.log('Total collected amount:', updatedCase.total_collected_amount);
 
     return updatedCase;
   }
