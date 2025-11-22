@@ -72,7 +72,8 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
         'lastPaymentDate', 'lastPaidDate', 'lastPaymentAmount', 'lastPaidAmount', 'loanCreatedAt', 'sanctionDate',
         'name', 'loan no', 'mobile', 'location', 'occupation', 'amount', 'days past due', 'principal outstanding',
         'installment', 'total due', 'date of last payment', 'last repayment date', 'collection date',
-        'collection amount', 'receipt amount', 'repayment amount', 'disbursement date', 'booking date', 'agreement date'
+        'collection amount', 'receipt amount', 'repayment amount', 'disbursement date', 'booking date', 'agreement date',
+        'Last Paid Date', 'Sanction Date', 'Last Paid Amount', 'last payment date', 'last payment amount', 'loan created at'
     ].map(normalizeKey);
 
     const additionalFields = Object.entries(details)
