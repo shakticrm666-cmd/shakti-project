@@ -58,18 +58,26 @@ export const TelecallerDashboard: React.FC<TelecallerDashboardProps> = ({ user, 
     city: 'Mumbai',
     state: 'Maharashtra'
   });
-  const performanceData = {
+  const [performanceData, setPerformanceData] = useState({
     dailyCalls: { current: 45, target: 60 },
     weeklyCalls: { current: 280, target: 300 },
     monthlyCalls: { current: 1200, target: 1500 },
-    collections: { collected: 85000, target: 100000, progress: 85 }
-  };
+    collections: { collected: 0, target: 100000, progress: 0 }
+  });
 
-  const followUpData = {
-    todaysFollowUps: 12,
-    upcomingFollowUps: 8,
-    todaysPTP: 5
-  };
+  const [followUpData, setFollowUpData] = useState({
+    todaysFollowUps: 0,
+    upcomingFollowUps: 0,
+    todaysPTP: 0
+  });
+
+  const [caseStatusMetrics, setCaseStatusMetrics] = useState({
+    total: 0,
+    new: 0,
+    assigned: 0,
+    inProgress: 0,
+    closed: 0
+  });
 
   const teamToppersData = [
     { name: 'Rajesh Kumar', callsDoneToday: 67, collectionAmount: 45000, ptpSuccessPercent: 85 },
@@ -110,14 +118,23 @@ export const TelecallerDashboard: React.FC<TelecallerDashboardProps> = ({ user, 
       const cases = await customerCaseService.getCasesByTelecaller(user.tenantId!, user!.empId);
       setCustomerCases(cases);
 
-      // Calculate metrics from real data
+      const dashboardMetrics = await customerCaseService.getDashboardMetrics(user.tenantId!, user.empId);
+
+      setPerformanceData(prev => ({
+        ...prev,
+        collections: dashboardMetrics.collections
+      }));
+
+      setFollowUpData(dashboardMetrics.followUps);
+      setCaseStatusMetrics(dashboardMetrics.caseStatus);
+
       const assignedCases = cases.length;
-      const pendingFollowups = cases.filter(c => c.status === 'in_progress').length;
+      const pendingFollowups = dashboardMetrics.followUps.todaysFollowUps + dashboardMetrics.followUps.upcomingFollowUps;
 
       setMetrics({
         assignedCases,
-        callsToday: 0, // Would come from call logs in future
-        recoveryToday: 0, // Would come from payment data in future
+        callsToday: 0,
+        recoveryToday: dashboardMetrics.collections.collected,
         pendingFollowups
       });
     } catch (error) {
@@ -298,7 +315,7 @@ export const TelecallerDashboard: React.FC<TelecallerDashboardProps> = ({ user, 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   <CallsPerformanceCard performanceData={performanceData} />
                   <CollectionsSummaryCard performanceData={performanceData} />
-                  <CasesStatusOverviewCard customerCases={customerCases} />
+                  <CasesStatusOverviewCard customerCases={customerCases} caseStatusMetrics={caseStatusMetrics} />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -710,6 +727,7 @@ export const TelecallerDashboard: React.FC<TelecallerDashboardProps> = ({ user, 
           ));
           setIsCallLogOpen(false);
           setSelectedCase(null);
+          loadDashboardData();
         }}
       />
 
@@ -729,6 +747,7 @@ export const TelecallerDashboard: React.FC<TelecallerDashboardProps> = ({ user, 
           ));
           setIsStatusUpdateOpen(false);
           setSelectedCase(null);
+          loadDashboardData();
         }}
       />
 

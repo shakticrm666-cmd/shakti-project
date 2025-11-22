@@ -1,12 +1,26 @@
 import React from 'react';
-import { FileText, Target, Activity, TrendingUp } from 'lucide-react';
+import { FileText, Target, Activity, TrendingUp, Plus } from 'lucide-react';
 import { CustomerCase } from '../../services/customerCaseService';
 
 interface CasesStatusOverviewCardProps {
   customerCases: CustomerCase[];
+  caseStatusMetrics?: {
+    total: number;
+    new: number;
+    assigned: number;
+    inProgress: number;
+    closed: number;
+  };
 }
 
-export const CasesStatusOverviewCard: React.FC<CasesStatusOverviewCardProps> = ({ customerCases }) => {
+export const CasesStatusOverviewCard: React.FC<CasesStatusOverviewCardProps> = ({ customerCases, caseStatusMetrics }) => {
+  const statusData = caseStatusMetrics || {
+    total: customerCases.length,
+    new: customerCases.filter(c => !c.status || c.status === 'new').length,
+    assigned: customerCases.filter(c => c.status === 'assigned').length,
+    inProgress: customerCases.filter(c => c.status === 'in_progress').length,
+    closed: customerCases.filter(c => c.status === 'closed').length
+  };
   return (
     <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300">
       <div className="flex items-center mb-6">
@@ -42,6 +56,42 @@ export const CasesStatusOverviewCard: React.FC<CasesStatusOverviewCardProps> = (
       </div>
 
       <div className="space-y-3">
+        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-yellow-50 to-yellow-100 rounded-xl border border-yellow-200/50 hover:shadow-md transition-all duration-200">
+          <div className="flex items-center">
+            <div className="p-1.5 bg-yellow-500 rounded-lg mr-3">
+              <Plus className="w-4 h-4 text-white" />
+            </div>
+            <span className="font-semibold text-gray-700">New Cases</span>
+          </div>
+          <span className="text-xl font-bold text-yellow-700">
+            {statusData.new}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl border border-blue-200/50 hover:shadow-md transition-all duration-200">
+          <div className="flex items-center">
+            <div className="p-1.5 bg-blue-500 rounded-lg mr-3">
+              <TrendingUp className="w-4 h-4 text-white" />
+            </div>
+            <span className="font-semibold text-gray-700">Assigned</span>
+          </div>
+          <span className="text-xl font-bold text-blue-700">
+            {statusData.assigned}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-orange-100 rounded-xl border border-orange-200/50 hover:shadow-md transition-all duration-200">
+          <div className="flex items-center">
+            <div className="p-1.5 bg-orange-500 rounded-lg mr-3">
+              <Activity className="w-4 h-4 text-white" />
+            </div>
+            <span className="font-semibold text-gray-700">In Progress</span>
+          </div>
+          <span className="text-xl font-bold text-orange-700">
+            {statusData.inProgress}
+          </span>
+        </div>
+
         <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-green-100 rounded-xl border border-green-200/50 hover:shadow-md transition-all duration-200">
           <div className="flex items-center">
             <div className="p-1.5 bg-green-500 rounded-lg mr-3">
@@ -50,31 +100,7 @@ export const CasesStatusOverviewCard: React.FC<CasesStatusOverviewCardProps> = (
             <span className="font-semibold text-gray-700">Closed Cases</span>
           </div>
           <span className="text-xl font-bold text-green-700">
-            {customerCases.filter(c => c.status === 'closed').length}
-          </span>
-        </div>
-
-        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl border border-blue-200/50 hover:shadow-md transition-all duration-200">
-          <div className="flex items-center">
-            <div className="p-1.5 bg-blue-500 rounded-lg mr-3">
-              <Activity className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-semibold text-gray-700">In Progress</span>
-          </div>
-          <span className="text-xl font-bold text-blue-700">
-            {customerCases.filter(c => c.status === 'in_progress').length}
-          </span>
-        </div>
-
-        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl border border-purple-200/50 hover:shadow-md transition-all duration-200">
-          <div className="flex items-center">
-            <div className="p-1.5 bg-purple-500 rounded-lg mr-3">
-              <TrendingUp className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-semibold text-gray-700">Assigned</span>
-          </div>
-          <span className="text-xl font-bold text-purple-700">
-            {customerCases.filter(c => c.status === 'assigned').length}
+            {statusData.closed}
           </span>
         </div>
       </div>

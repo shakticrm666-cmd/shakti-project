@@ -735,5 +735,147 @@ export const customerCaseService = {
       console.error('Error in getCompleteCaseDataForExport:', error);
       return [];
     }
+  },
+
+  async getDashboardMetrics(tenantId: string, empId: string): Promise<{
+    collections: {
+      collected: number;
+      target: number;
+      progress: number;
+    };
+    followUps: {
+      todaysFollowUps: number;
+      upcomingFollowUps: number;
+      todaysPTP: number;
+    };
+    caseStatus: {
+      total: number;
+      new: number;
+      assigned: number;
+      inProgress: number;
+      closed: number;
+    };
+  }> {
+    try {
+      const { data: employee, error: employeeError } = await supabase
+        .from(EMPLOYEE_TABLE)
+        .select('id, emp_id, name')
+        .eq('tenant_id', tenantId)
+        .eq('emp_id', empId)
+        .eq('role', 'Telecaller')
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (employeeError || !employee) {
+        console.error('Error finding telecaller employee:', employeeError);
+        return {
+          collections: { collected: 0, target: 100000, progress: 0 },
+          followUps: { todaysFollowUps: 0, upcomingFollowUps: 0, todaysPTP: 0 },
+          caseStatus: { total: 0, new: 0, assigned: 0, inProgress: 0, closed: 0 }
+        };
+      }
+
+      const { data: cases, error: casesError } = await supabase
+        .from(CUSTOMER_CASE_TABLE)
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('telecaller_id', employee.id);
+
+      if (casesError) {
+        console.error('Error fetching cases for metrics:', casesError);
+        return {
+          collections: { collected: 0, target: 100000, progress: 0 },
+          followUps: { todaysFollowUps: 0, upcomingFollowUps: 0, todaysPTP: 0 },
+          caseStatus: { total: 0, new: 0, assigned: 0, inProgress: 0, closed: 0 }
+        };
+      }
+
+      const totalCollected = cases?.reduce((sum, c) => {
+        return sum + (c.total_collected_amount || 0);
+      }, 0) || 0;
+
+      const monthlyTarget = 100000;
+      const progress = monthlyTarget > 0 ? Math.round((totalCollected / monthlyTarget) * 100) : 0;
+
+      const caseIds = cases?.map(c => c.id) || [];
+      let todaysPTP = 0;
+      let todaysFollowUps = 0;
+      let upcomingFollowUps = 0;
+
+      if (caseIds.length > 0) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayStr = today.toISOString().split('T')[0];
+
+        const { data: allLogs, error: logsError } = await supabase
+          .from(CASE_CALL_LOG_TABLE)
+          .select('*')
+          .in('case_id', caseIds);
+
+        if (!logsError && allLogs) {
+          const todayStart = new Date(todayStr).getTime();
+          const todayEnd = todayStart + 86400000;
+
+          todaysPTP = allLogs.filter(log => {
+            const logDate = new Date(log.created_at).getTime();
+            return logDate >= todayStart && logDate < todayEnd &&
+                   (log.call_status === 'PTP' || log.call_status === 'FUTURE_PTP');
+          }).length;
+
+          const ptpMap = new Map();
+          allLogs.forEach(log => {
+            if (log.ptp_date) {
+              const existingLog = ptpMap.get(log.case_id);
+              if (!existingLog || new Date(log.created_at) > new Date(existingLog.created_at)) {
+                ptpMap.set(log.case_id, log);
+              }
+            }
+          });
+
+          ptpMap.forEach(log => {
+            if (log.ptp_date) {
+              const ptpDate = new Date(log.ptp_date);
+              ptpDate.setHours(0, 0, 0, 0);
+              const ptpTime = ptpDate.getTime();
+
+              if (ptpTime === todayStart) {
+                todaysFollowUps++;
+              } else if (ptpTime > todayStart) {
+                upcomingFollowUps++;
+              }
+            }
+          });
+        }
+      }
+
+      const statusCounts = {
+        total: cases?.length || 0,
+        new: cases?.filter(c => !c.status || c.status === 'new').length || 0,
+        assigned: cases?.filter(c => c.status === 'assigned').length || 0,
+        inProgress: cases?.filter(c => c.status === 'in_progress').length || 0,
+        closed: cases?.filter(c => c.status === 'closed').length || 0
+      };
+
+      return {
+        collections: {
+          collected: totalCollected,
+          target: monthlyTarget,
+          progress: progress > 100 ? 100 : progress
+        },
+        followUps: {
+          todaysFollowUps,
+          upcomingFollowUps,
+          todaysPTP
+        },
+        caseStatus: statusCounts
+      };
+    } catch (error) {
+      console.error('Error in getDashboardMetrics:', error);
+      return {
+        collections: { collected: 0, target: 100000, progress: 0 },
+        followUps: { todaysFollowUps: 0, upcomingFollowUps: 0, todaysPTP: 0 },
+        caseStatus: { total: 0, new: 0, assigned: 0, inProgress: 0, closed: 0 }
+      };
+    }
   }
 };
