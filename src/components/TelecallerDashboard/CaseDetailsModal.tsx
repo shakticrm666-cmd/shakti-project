@@ -201,14 +201,11 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 h-full">
                   {(() => {
                     const loanFields = [
-                      { key: 'outstandingAmount', label: 'Outstanding Amount', icon: DollarSign },
-                      { key: 'emiAmount', label: 'EMI Amount', icon: DollarSign },
-                      { key: 'posAmount', label: 'POS Amount', icon: DollarSign },
+                      { key: 'totalOutstanding', label: 'Outstanding Amount', icon: DollarSign },
+                      { key: 'emi', label: 'EMI Amount', icon: DollarSign },
+                      { key: 'pos', label: 'POS Amount', icon: DollarSign },
                       { key: 'caseStatus', label: 'Case Status', icon: FileText },
                       { key: 'dpd', label: 'DPD', icon: Calendar },
-                      { key: 'pos', label: 'POS', icon: DollarSign },
-                      { key: 'emi', label: 'EMI', icon: DollarSign },
-                      { key: 'totalOutstanding', label: 'Total Outstanding', icon: DollarSign },
                       { key: 'paymentLink', label: 'Payment Link', icon: FileText, copyable: true },
                       { key: 'lastPaidDate', label: 'Last Payment Date', icon: Calendar },
                       { key: 'lastPaidAmount', label: 'Last Payment Amount', icon: DollarSign },
