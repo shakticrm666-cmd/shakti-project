@@ -36,7 +36,9 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
 
     setIsLoadingLogs(true);
     try {
+      console.log('Fetching call logs for case:', caseData.id);
       const logs = await customerCaseService.getCallLogsWithEmployeeDetails(caseData.id);
+      console.log('Fetched call logs:', logs);
       setCallLogs(logs.slice(0, 5));
     } catch (error) {
       console.error('Error fetching call logs:', error);
@@ -75,7 +77,15 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
         ? `${ptpDate}T${ptpTime}:00`
         : (ptpDate ? `${ptpDate}T00:00:00` : undefined);
 
-      await customerCaseService.addCallLog({
+      console.log('Saving call log with data:', {
+        case_id: caseData.id,
+        employee_id: user.id,
+        call_status: callStatus,
+        ptp_date: ptpDateTime,
+        call_notes: remarks
+      });
+
+      const savedLog = await customerCaseService.addCallLog({
         case_id: caseData.id,
         employee_id: user.id,
         call_status: callStatus,
@@ -84,6 +94,8 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
         call_duration: undefined,
         amount_collected: undefined
       });
+
+      console.log('Call log saved successfully:', savedLog);
 
       await customerCaseService.updateCase(caseData.id, {
         status: 'in_progress',

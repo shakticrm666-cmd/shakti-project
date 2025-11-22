@@ -258,23 +258,49 @@ export const customerCaseService = {
   },
 
   async getCallLogsWithEmployeeDetails(caseId: string): Promise<(CallLog & { employee_name?: string })[]> {
-    const { data, error } = await supabase
+    // First, get the call logs
+    const { data: logs, error: logsError } = await supabase
       .from(CASE_CALL_LOG_TABLE)
-      .select(`
-        *,
-        employees(name)
-      `)
+      .select('*')
       .eq('case_id', caseId)
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching call logs with employee details:', error);
-      throw new Error('Failed to fetch call logs with employee details');
+    if (logsError) {
+      console.error('Error fetching call logs:', logsError);
+      throw new Error('Failed to fetch call logs');
     }
 
-    return (data || []).map((log: any) => ({
+    if (!logs || logs.length === 0) {
+      return [];
+    }
+
+    // Get unique employee IDs
+    const employeeIds = [...new Set(logs.map(log => log.employee_id))];
+
+    // Fetch employee names
+    const { data: employees, error: employeesError } = await supabase
+      .from('employees')
+      .select('id, name')
+      .in('id', employeeIds);
+
+    if (employeesError) {
+      console.error('Error fetching employees:', employeesError);
+      // Return logs without employee names if fetch fails
+      return logs.map(log => ({
+        ...log,
+        employee_name: 'Unknown'
+      }));
+    }
+
+    // Create a map of employee IDs to names
+    const employeeMap = new Map(
+      (employees || []).map(emp => [emp.id, emp.name])
+    );
+
+    // Merge employee names with call logs
+    return logs.map(log => ({
       ...log,
-      employee_name: log.employees?.name || 'Unknown'
+      employee_name: employeeMap.get(log.employee_id) || 'Unknown'
     }));
   },
 
