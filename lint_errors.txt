@@ -1,0 +1,86 @@
+﻿
+> shakti@0.0.0 lint
+> eslint .
+
+
+C:\Users\yanavi\Documents\project\src\components\CompanyAdmin\forms\AddEmployeeForm.tsx
+  117:82  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\yanavi\Documents\project\src\components\CompanyAdmin\forms\BulkDeleteModal.tsx
+  26:14  error  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\yanavi\Documents\project\src\components\CompanyAdmin\forms\BulkUploadModal.tsx
+  15:58  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\yanavi\Documents\project\src\components\CompanyAdmin\forms\ClearAllDataModal.tsx
+  2:36  error  'X' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\yanavi\Documents\project\src\components\CompanyAdmin\forms\EditEmployeeForm.tsx
+  94:82  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\yanavi\Documents\project\src\components\CompanyAdmin\forms\ExcelValidationModal.tsx
+  130:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  153:82  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  163:18  error  'error' is defined but never used         @typescript-eslint/no-unused-vars
+  214:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\yanavi\Documents\project\src\components\CompanyAdmin\forms\ViewEmployeeModal.tsx
+  54:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\yanavi\Documents\project\src\components\TeamIncharge\CaseManagement.tsx
+  43:6  warning  React Hook useEffect has a missing dependency: 'loadDashboardStats'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\yanavi\Documents\project\src\components\TeamIncharge\CreateTeam.tsx
+  33:6  warning  React Hook useEffect has a missing dependency: 'loadAvailableTelecallers'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\yanavi\Documents\project\src\components\TeamIncharge\Teams.tsx
+  27:6  warning  React Hook useEffect has a missing dependency: 'loadTeams'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\yanavi\Documents\project\src\components\TeamIncharge\forms\ColumnValidationModal.tsx
+  35:6  warning  React Hook useEffect has a missing dependency: 'loadColumns'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\yanavi\Documents\project\src\components\TeamIncharge\forms\EditTeamModal.tsx
+  56:6  warning  React Hook useEffect has a missing dependency: 'loadAvailableTelecallers'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\yanavi\Documents\project\src\components\TeamIncharge\forms\ViewTeamModal.tsx
+  96:58  error  'index' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\yanavi\Documents\project\src\components\TeamIncharge\modals\AssignCasesModal.tsx
+   31:38  error    Unexpected any. Specify a different type                                                                            @typescript-eslint/no-explicit-any
+   32:50  error    Unexpected any. Specify a different type                                                                            @typescript-eslint/no-explicit-any
+   38:60  error    Unexpected any. Specify a different type                                                                            @typescript-eslint/no-explicit-any
+   40:92  error    Unexpected any. Specify a different type                                                                            @typescript-eslint/no-explicit-any
+   47:6   warning  React Hook useEffect has a missing dependency: 'loadInitialData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+   51:6   warning  React Hook useEffect has a missing dependency: 'applyFilters'. Either include it or remove the dependency array     react-hooks/exhaustive-deps
+   69:48  error    Unexpected any. Specify a different type                                                                            @typescript-eslint/no-explicit-any
+  199:21  error    Unexpected any. Specify a different type                                                                            @typescript-eslint/no-explicit-any
+
+C:\Users\yanavi\Documents\project\src\components\TeamIncharge\modals\CaseTrackerModal.tsx
+  44:38  error    Unexpected any. Specify a different type                                                                            @typescript-eslint/no-explicit-any
+  45:50  error    Unexpected any. Specify a different type                                                                            @typescript-eslint/no-explicit-any
+  47:10  error    'columnConfigs' is assigned a value but never used                                                                  @typescript-eslint/no-unused-vars
+  47:25  error    'setColumnConfigs' is assigned a value but never used                                                               @typescript-eslint/no-unused-vars
+  73:6   warning  React Hook useEffect has a missing dependency: 'loadInitialData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  77:6   warning  React Hook useEffect has a missing dependency: 'loadCases'. Either include it or remove the dependency array        react-hooks/exhaustive-deps
+  81:6   warning  React Hook useEffect has a missing dependency: 'applyFilters'. Either include it or remove the dependency array     react-hooks/exhaustive-deps
+  89:48  error    Unexpected any. Specify a different type                                                                            @typescript-eslint/no-explicit-any
+
+C:\Users\yanavi\Documents\project\src\components\TeamIncharge\modals\CaseViewModal.tsx
+   2:52  error    'Phone' is defined but never used                                                                                          @typescript-eslint/no-unused-vars
+  23:38  error    Unexpected any. Specify a different type                                                                                   @typescript-eslint/no-explicit-any
+  25:50  error    Unexpected any. Specify a different type                                                                                   @typescript-eslint/no-explicit-any
+  35:6   warning  React Hook useEffect has a missing dependency: 'loadTeams'. Either include it or remove the dependency array               react-hooks/exhaustive-deps
+  41:6   warning  React Hook useEffect has a missing dependency: 'loadTelecallersForTeam'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  47:6   warning  React Hook useEffect has a missing dependency: 'loadTelecallerCases'. Either include it or remove the dependency array     react-hooks/exhaustive-deps
+  55:48  error    Unexpected any. Specify a different type                                                                                   @typescript-eslint/no-explicit-any
+
+C:\Users\yanavi\Documents\project\src\components\TeamIncharge\modals\UploadCasesModal.tsx
+   33:38  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   39:52  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   49:6   warning  React Hook useEffect has a missing dependency: 'loadProductsAndTeams'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+   67:48  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  300:31  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  862:70  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+
+Γ£û 45 problems (31 errors, 14 warnings)
+
