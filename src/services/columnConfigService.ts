@@ -108,7 +108,12 @@ export const columnConfigService = {
       { column_name: 'totalOutstanding', display_name: 'TOTAL OUTSTANDING', is_active: true, is_custom: false, column_order: 8, data_type: 'currency' },
       { column_name: 'employmentType', display_name: 'EMPLOYMENT TYPE', is_active: true, is_custom: false, column_order: 9, data_type: 'text' },
       { column_name: 'paymentLink', display_name: 'Payment Link', is_active: true, is_custom: false, column_order: 10, data_type: 'url' },
-      { column_name: 'loanAmount', display_name: 'Loan Amount', is_active: true, is_custom: false, column_order: 11, data_type: 'currency' }
+      { column_name: 'loanAmount', display_name: 'Loan Amount', is_active: true, is_custom: false, column_order: 11, data_type: 'currency' },
+
+      // Payment and Loan Date columns
+      { column_name: 'lastPaidDate', display_name: 'Last Payment Date', is_active: true, is_custom: false, column_order: 12, data_type: 'date' },
+      { column_name: 'lastPaidAmount', display_name: 'Last Payment Amount', is_active: true, is_custom: false, column_order: 13, data_type: 'currency' },
+      { column_name: 'sanctionDate', display_name: 'Loan Created At', is_active: true, is_custom: false, column_order: 14, data_type: 'date' }
     ];
 
     await this.saveColumnConfigurations(tenantId, productName, defaultColumns);
