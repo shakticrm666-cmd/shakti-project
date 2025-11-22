@@ -142,5 +142,37 @@ export const columnConfigService = {
       console.error('Error clearing all column configurations:', error);
       throw new Error('Failed to clear all column configurations');
     }
+  },
+
+  async addMissingDefaultColumns(tenantId: string, productName: string): Promise<void> {
+    const existingConfig = await this.getColumnConfigurations(tenantId, productName);
+
+    const newColumns = [
+      { column_name: 'lastPaidDate', display_name: 'Last Payment Date', is_active: true, is_custom: false, column_order: 12, data_type: 'date' },
+      { column_name: 'lastPaidAmount', display_name: 'Last Payment Amount', is_active: true, is_custom: false, column_order: 13, data_type: 'currency' },
+      { column_name: 'sanctionDate', display_name: 'Loan Created At', is_active: true, is_custom: false, column_order: 14, data_type: 'date' }
+    ];
+
+    const existingColumnNames = existingConfig.map(c => c.column_name);
+    const columnsToAdd = newColumns.filter(col => !existingColumnNames.includes(col.column_name));
+
+    if (columnsToAdd.length === 0) {
+      return;
+    }
+
+    const columnsWithTenantId = columnsToAdd.map(col => ({
+      ...col,
+      tenant_id: tenantId,
+      product_name: productName
+    }));
+
+    const { error } = await supabase
+      .from(COLUMN_CONFIGURATION_TABLE)
+      .insert(columnsWithTenantId);
+
+    if (error) {
+      console.error('Error adding missing columns:', error);
+      throw new Error('Failed to add missing columns');
+    }
   }
 };

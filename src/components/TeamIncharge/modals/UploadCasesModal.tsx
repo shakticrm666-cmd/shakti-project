@@ -113,6 +113,9 @@ export const UploadCasesModal: React.FC<UploadCasesModalProps> = ({
       // First, ensure default columns are initialized for this product
       await columnConfigService.initializeDefaultColumns(user.tenantId, product);
 
+      // Add missing default columns to existing products
+      await columnConfigService.addMissingDefaultColumns(user.tenantId, product);
+
       const configs = await columnConfigService.getActiveColumnConfigurations(user.tenantId, product);
       console.log('Loaded column configs:', configs.length);
       console.log('Column details:', configs.map(c => `${c.column_name} (${c.is_active ? 'active' : 'inactive'})`));

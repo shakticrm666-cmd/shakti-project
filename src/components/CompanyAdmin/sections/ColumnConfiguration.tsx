@@ -46,6 +46,9 @@ export const ColumnConfiguration: React.FC<ColumnConfigurationProps> = ({ user }
       const loadProductColumns = async () => {
         try {
           setIsLoading(true);
+
+          await columnConfigService.addMissingDefaultColumns(user?.tenantId, selectedProduct);
+
           const configs = await columnConfigService.getColumnConfigurations(user?.tenantId, selectedProduct);
 
           // Load all columns (both default and custom)
