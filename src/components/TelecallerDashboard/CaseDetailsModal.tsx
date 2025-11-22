@@ -26,23 +26,23 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
     // Convert camelCase to snake_case for database field lookup
     const snakeCaseField = field.replace(/([A-Z])/g, '_$1').toLowerCase();
 
-    // First check case_data if it exists (this is where most data is stored)
-    const nestedCaseData = data.case_data as Record<string, unknown> | undefined;
-    const caseDataField = nestedCaseData?.[field] || nestedCaseData?.[snakeCaseField];
-    if (caseDataField !== undefined && caseDataField !== null && caseDataField !== '') return caseDataField;
-
-    // Then check custom_fields if it exists
-    const nestedCustomFields = data.custom_fields as Record<string, unknown> | undefined;
-    const customField = nestedCustomFields?.[field] || nestedCustomFields?.[snakeCaseField];
-    if (customField !== undefined && customField !== null && customField !== '') return customField;
-
-    // Finally check direct properties (for basic fields like id, customer_name, etc.)
+    // First check direct properties (for database fields like last_paid_date, sanction_date, etc.)
     const directValue = data[field];
     if (directValue !== undefined && directValue !== null && directValue !== '') return directValue;
 
     // Check direct property (snake_case)
     const snakeDirectValue = data[snakeCaseField];
     if (snakeDirectValue !== undefined && snakeDirectValue !== null && snakeDirectValue !== '') return snakeDirectValue;
+
+    // Then check case_data if it exists (this is where Excel upload data is stored)
+    const nestedCaseData = data.case_data as Record<string, unknown> | undefined;
+    const caseDataField = nestedCaseData?.[field] || nestedCaseData?.[snakeCaseField];
+    if (caseDataField !== undefined && caseDataField !== null && caseDataField !== '') return caseDataField;
+
+    // Finally check custom_fields if it exists
+    const nestedCustomFields = data.custom_fields as Record<string, unknown> | undefined;
+    const customField = nestedCustomFields?.[field] || nestedCustomFields?.[snakeCaseField];
+    if (customField !== undefined && customField !== null && customField !== '') return customField;
 
     return '';
   };
