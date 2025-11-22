@@ -174,5 +174,27 @@ export const columnConfigService = {
       console.error('Error adding missing columns:', error);
       throw new Error('Failed to add missing columns');
     }
+  },
+
+  async getCustomColumns(tenantId: string, productName?: string): Promise<ColumnConfiguration[]> {
+    let query = supabase
+      .from(COLUMN_CONFIGURATION_TABLE)
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('is_custom', true)
+      .eq('is_active', true);
+
+    if (productName) {
+      query = query.eq('product_name', productName);
+    }
+
+    const { data, error } = await query.order('column_order', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching custom columns:', error);
+      throw new Error('Failed to fetch custom columns');
+    }
+
+    return data || [];
   }
 };

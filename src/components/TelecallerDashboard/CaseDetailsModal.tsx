@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, Phone, MapPin, Calendar, DollarSign, FileText, CheckCircle, MessageSquare, Clock, History } from 'lucide-react';
+import { X, User, Phone, MapPin, Calendar, DollarSign, FileText, CheckCircle, MessageSquare, Clock, History, Database } from 'lucide-react';
 import { CustomerCase } from './types';
 import { customerCaseService, CallLog } from '../../services/customerCaseService';
 import { useNotification, notificationHelpers } from '../shared/Notification';
 import { PaymentReceivedModal } from './PaymentReceivedModal';
+import { CustomColumnsModal } from './CustomColumnsModal';
 import { useCelebration } from '../../contexts/CelebrationContext';
+import { columnConfigService } from '../../services/columnConfigService';
 
 interface CaseDetailsModalProps {
   isOpen: boolean;
@@ -31,6 +33,14 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
   const [callLogs, setCallLogs] = useState<(CallLog & { employee_name?: string })[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [currentCaseData, setCurrentCaseData] = useState(caseData);
+  const [showCustomColumnsModal, setShowCustomColumnsModal] = useState(false);
+  const [customColumns, setCustomColumns] = useState<Array<{
+    column_name: string;
+    display_name: string;
+    data_type: string;
+    column_order: number;
+  }>>([]);
+  const [customColumnNames, setCustomColumnNames] = useState<Set<string>>(new Set());
 
   const handleStatusUpdate = () => {
     setShowLogCallModal(true);
@@ -52,10 +62,35 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
     }
   };
 
+  const fetchCustomColumns = async () => {
+    if (!user.tenantId) return;
+
+    try {
+      const configs = await columnConfigService.getCustomColumns(user.tenantId);
+      const formattedColumns = configs.map(config => ({
+        column_name: config.column_name,
+        display_name: config.display_name,
+        data_type: config.data_type,
+        column_order: config.column_order
+      }));
+      setCustomColumns(formattedColumns);
+
+      const columnNames = new Set<string>();
+      configs.forEach(config => {
+        columnNames.add(config.column_name);
+        columnNames.add(config.column_name.replace(/([A-Z])/g, '_$1').toLowerCase());
+      });
+      setCustomColumnNames(columnNames);
+    } catch (error) {
+      console.error('Error fetching custom columns:', error);
+    }
+  };
+
   useEffect(() => {
     if (isOpen && caseData?.id) {
       setCurrentCaseData(caseData);
       fetchCallLogs();
+      fetchCustomColumns();
     }
   }, [isOpen, caseData?.id]);
 
@@ -338,7 +373,7 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
                   </div>
 
                   {/* Action Buttons Row */}
-                  <div className="md:col-span-2 lg:col-span-3 flex justify-center space-x-3 pt-2">
+                  <div className="md:col-span-2 lg:col-span-3 flex justify-center flex-wrap gap-3 pt-2">
                     <button className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2">
                       <Phone className="w-4 h-4" />
                       <span>Add Mobile</span>
@@ -361,6 +396,15 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
                       >
                         <DollarSign className="w-4 h-4" />
                         <span>Payment Received</span>
+                      </button>
+                    )}
+                    {customColumns.length > 0 && (
+                      <button
+                        onClick={() => setShowCustomColumnsModal(true)}
+                        className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2"
+                      >
+                        <Database className="w-4 h-4" />
+                        <span>View Custom Fields</span>
                       </button>
                     )}
                   </div>
@@ -434,27 +478,47 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
               </div>
               <div className="p-6 rounded-b-xl">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 h-full">
-                  {Object.entries(caseData as unknown as Record<string, unknown>)
-                    .filter(([key, value]) => {
-                      if (!key || value === null || value === undefined || value === '' ||
-                          key === 'case_data' || key === 'custom_fields' ||
-                          key === 'telecaller' || key === 'team' ||
-                          typeof value === 'object') {
-                        return false;
-                      }
+                  {(() => {
+                    const additionalDetails = Object.entries(caseData as unknown as Record<string, unknown>)
+                      .filter(([key, value]) => {
+                        if (!key || value === null || value === undefined || value === '' ||
+                            key === 'case_data' || key === 'custom_fields' ||
+                            key === 'telecaller' || key === 'team' ||
+                            typeof value === 'object') {
+                          return false;
+                        }
 
-                      const normalizeKey = (k: string) => k.toLowerCase().replace(/[\s_]+/g, '');
-                      const knownKeys = [
-                        'customerName', 'loanId', 'mobileNo', 'employmentType', 'loanAmount', 'address', 'city', 'state', 'pincode',
-                        'dpd', 'pos', 'emi', 'totalOutstanding', 'paymentLink', 'lastPaymentDate', 'lastPaymentAmount', 'loanCreatedAt',
-                        'empId', 'id', 'remarks', 'outstandingAmount', 'emiAmount', 'posAmount', 'caseStatus',
-                        'lastPaidDate', 'sanctionDate', 'lastPaidAmount', 'Last Paid Date', 'Sanction Date', 'Last Paid Amount',
-                        'last payment date', 'last payment amount', 'loan created at'
-                      ].map(normalizeKey);
+                        if (customColumnNames.has(key) || customColumnNames.has(key.replace(/([A-Z])/g, '_$1').toLowerCase())) {
+                          return false;
+                        }
 
-                      return !knownKeys.includes(normalizeKey(key));
-                    })
-                    .map(([key, value]) => {
+                        const normalizeKey = (k: string) => k.toLowerCase().replace(/[\s_]+/g, '');
+                        const knownKeys = [
+                          'customerName', 'loanId', 'mobileNo', 'employmentType', 'loanAmount', 'address', 'city', 'state', 'pincode',
+                          'dpd', 'pos', 'emi', 'totalOutstanding', 'paymentLink', 'lastPaymentDate', 'lastPaymentAmount', 'loanCreatedAt',
+                          'empId', 'id', 'remarks', 'outstandingAmount', 'emiAmount', 'posAmount', 'caseStatus',
+                          'lastPaidDate', 'sanctionDate', 'lastPaidAmount', 'Last Paid Date', 'Sanction Date', 'Last Paid Amount',
+                          'last payment date', 'last payment amount', 'loan created at', 'totalCollectedAmount', 'total_collected_amount'
+                        ].map(normalizeKey);
+
+                        return !knownKeys.includes(normalizeKey(key));
+                      });
+
+                    if (additionalDetails.length === 0) {
+                      return (
+                        <div className="col-span-3 text-center py-8">
+                          <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                          <p className="text-sm text-gray-500">No additional details available</p>
+                          {customColumns.length > 0 && (
+                            <p className="text-xs text-gray-400 mt-2">
+                              Custom fields are available in the &quot;View Custom Fields&quot; section
+                            </p>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    return additionalDetails.map(([key, value]) => {
                       const displayName = key
                         .replace(/([A-Z])/g, ' $1')
                         .replace(/_/g, ' ')
@@ -474,7 +538,8 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
                           </div>
                         </div>
                       );
-                    })}
+                    });
+                  })()}
                 </div>
               </div>
             </div>
@@ -698,6 +763,13 @@ export const CaseDetailsModal: React.FC<CaseDetailsModalProps> = ({ isOpen, onCl
         onClose={() => setShowPaymentModal(false)}
         caseData={currentCaseData || caseData}
         onSubmit={handlePaymentSubmit}
+      />
+
+      <CustomColumnsModal
+        isOpen={showCustomColumnsModal}
+        onClose={() => setShowCustomColumnsModal(false)}
+        caseData={currentCaseData || caseData}
+        customColumns={customColumns}
       />
     </div>
   );
