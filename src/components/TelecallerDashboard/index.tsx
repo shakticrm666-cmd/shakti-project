@@ -379,6 +379,8 @@ export const TelecallerDashboard: React.FC<TelecallerDashboardProps> = ({ user, 
                     { id: 7, columnName: 'lastPaidDate', displayName: 'Last Paid', isActive: true }
                   ]}
                   isLoading={isLoading}
+                  tenantId={user.tenantId!}
+                  empId={user.empId}
                   onViewDetails={(caseData) => {
                     setSelectedCase(caseData);
                     setIsCaseDetailsOpen(true);

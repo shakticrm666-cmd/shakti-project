@@ -1,12 +1,15 @@
 import React, { useState, useMemo } from 'react';
-import { Eye, Phone, Copy, Filter, ArrowUpDown, AlertTriangle } from 'lucide-react';
+import { Eye, Phone, Copy, Filter, ArrowUpDown, AlertTriangle, Download } from 'lucide-react';
 import { CustomerCase, ColumnConfig } from './types';
 import { getDPDColor, copyToClipboard, filterCases, paginateCases, getTotalPages, debounce } from './utils';
+import { customerCaseService } from '../../services/customerCaseService';
 
 interface CustomerCaseTableProps {
   customerCases: CustomerCase[];
   columnConfigs: ColumnConfig[];
   isLoading: boolean;
+  tenantId: string;
+  empId: string;
   onViewDetails: (caseData: CustomerCase) => void;
   onCallCustomer: (caseData: CustomerCase) => void;
   onUpdateStatus?: (caseData: CustomerCase) => void;
@@ -17,6 +20,8 @@ const CustomerCaseTable: React.FC<CustomerCaseTableProps> = ({
   customerCases,
   columnConfigs,
   isLoading,
+  tenantId,
+  empId,
   onViewDetails,
   onCallCustomer,
 
@@ -183,25 +188,126 @@ const CustomerCaseTable: React.FC<CustomerCaseTableProps> = ({
     }
   };
 
-  const exportToCSV = () => {
-    const activeColumnsList = getActiveColumns().filter(col => col.isActive && col.columnName !== 'actions');
-    const headers = activeColumnsList.map(col => col.displayName).join(',');
-    const rows = filteredCases.map(case_ =>
-      activeColumnsList.map(col => {
-        const caseRecord = case_ as unknown as Record<string, unknown>;
-        const value = caseRecord[col.columnName] || '';
-        return `"${String(value)}"`;
-      }).join(',')
-    ).join('\n');
+  const exportToCSV = async () => {
+    try {
+      const exportData = await customerCaseService.getCompleteCaseDataForExport(tenantId, empId);
 
-    const csvContent = `${headers}\n${rows}`;
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'customer-cases.csv';
-    a.click();
-    window.URL.revokeObjectURL(url);
+      if (exportData.length === 0) {
+        alert('No data available to export');
+        return;
+      }
+
+      const headers = [
+        'Loan ID',
+        'Customer Name',
+        'Mobile No',
+        'Alternate Number',
+        'Email',
+        'Address',
+        'City',
+        'State',
+        'Pincode',
+        'Product Name',
+        'Loan Amount',
+        'Outstanding Amount',
+        'POS Amount',
+        'EMI Amount',
+        'Pending Dues',
+        'DPD',
+        'Last Paid Amount',
+        'Last Paid Date',
+        'Sanction Date',
+        'Branch Name',
+        'Loan Type',
+        'Payment Link',
+        'Case Status',
+        'Status',
+        'Priority',
+        'Total Collected Amount',
+        'Payment Count',
+        'Last Payment Amount',
+        'Last Payment Date',
+        'Latest Call Status',
+        'Latest Call Date',
+        'Latest Call Notes',
+        'Latest PTP Date',
+        'Remarks',
+        'Created At',
+        'Updated At'
+      ];
+
+      const formatDate = (dateStr: string) => {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-IN');
+      };
+
+      const formatCurrency = (value: any) => {
+        if (!value || value === '0' || value === 0) return '0';
+        return String(value);
+      };
+
+      const escapeCSV = (value: any) => {
+        if (value === null || value === undefined) return '';
+        const str = String(value);
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      const rows = exportData.map(caseItem => [
+        escapeCSV(caseItem.loan_id),
+        escapeCSV(caseItem.customer_name),
+        escapeCSV(caseItem.mobile_no),
+        escapeCSV(caseItem.alternate_number),
+        escapeCSV(caseItem.email),
+        escapeCSV(caseItem.address),
+        escapeCSV(caseItem.city),
+        escapeCSV(caseItem.state),
+        escapeCSV(caseItem.pincode),
+        escapeCSV(caseItem.product_name),
+        formatCurrency(caseItem.loan_amount),
+        formatCurrency(caseItem.outstanding_amount),
+        formatCurrency(caseItem.pos_amount),
+        formatCurrency(caseItem.emi_amount),
+        formatCurrency(caseItem.pending_dues),
+        escapeCSV(caseItem.dpd || 0),
+        formatCurrency(caseItem.last_paid_amount),
+        formatDate(caseItem.last_paid_date),
+        formatDate(caseItem.sanction_date),
+        escapeCSV(caseItem.branch_name),
+        escapeCSV(caseItem.loan_type),
+        escapeCSV(caseItem.payment_link),
+        escapeCSV(caseItem.case_status),
+        escapeCSV(caseItem.status),
+        escapeCSV(caseItem.priority),
+        formatCurrency(caseItem.total_collected_amount || 0),
+        escapeCSV(caseItem.payment_count || 0),
+        formatCurrency(caseItem.last_payment_amount || 0),
+        formatDate(caseItem.last_payment_date),
+        escapeCSV(caseItem.latest_call_status),
+        formatDate(caseItem.latest_call_date),
+        escapeCSV(caseItem.latest_call_notes),
+        formatDate(caseItem.latest_ptp_date),
+        escapeCSV(caseItem.remarks),
+        formatDate(caseItem.created_at),
+        formatDate(caseItem.updated_at)
+      ].join(','));
+
+      const csvContent = [headers.join(','), ...rows].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const timestamp = new Date().toISOString().split('T')[0];
+      a.download = `customer-cases-export-${timestamp}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      alert('Failed to export data. Please try again.');
+    }
   };
 
   return (
@@ -217,8 +323,8 @@ const CustomerCaseTable: React.FC<CustomerCaseTableProps> = ({
               onClick={exportToCSV}
               className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center"
             >
-              <Copy className="w-4 h-4 mr-2" />
-              Export CSV
+              <Download className="w-4 h-4 mr-2" />
+              Export Complete Data
             </button>
           </div>
         </div>

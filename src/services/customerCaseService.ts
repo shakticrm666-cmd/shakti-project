@@ -641,5 +641,99 @@ export const customerCaseService = {
     }
 
     return updatedCase;
+  },
+
+  async getCompleteCaseDataForExport(tenantId: string, empId: string): Promise<any[]> {
+    try {
+      const { data: employee, error: employeeError } = await supabase
+        .from(EMPLOYEE_TABLE)
+        .select('id, emp_id, name')
+        .eq('tenant_id', tenantId)
+        .eq('emp_id', empId)
+        .eq('role', 'Telecaller')
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (employeeError || !employee) {
+        console.error('Error finding telecaller employee:', employeeError);
+        return [];
+      }
+
+      const { data: cases, error: casesError } = await supabase
+        .from(CUSTOMER_CASE_TABLE)
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('telecaller_id', employee.id)
+        .order('created_at', { ascending: false });
+
+      if (casesError) {
+        console.error('Error fetching cases for export:', casesError);
+        return [];
+      }
+
+      if (!cases || cases.length === 0) {
+        return [];
+      }
+
+      const caseIds = cases.map(c => c.id);
+
+      const { data: allCallLogs, error: logsError } = await supabase
+        .from(CASE_CALL_LOG_TABLE)
+        .select('*')
+        .in('case_id', caseIds)
+        .order('created_at', { ascending: false });
+
+      if (logsError) {
+        console.error('Error fetching call logs for export:', logsError);
+      }
+
+      const latestCallLogMap = new Map();
+      const paymentLogsMap = new Map();
+
+      if (allCallLogs && allCallLogs.length > 0) {
+        allCallLogs.forEach(log => {
+          if (!latestCallLogMap.has(log.case_id)) {
+            latestCallLogMap.set(log.case_id, log);
+          }
+
+          if (log.call_status === 'PAYMENT_RECEIVED' && log.amount_collected) {
+            if (!paymentLogsMap.has(log.case_id)) {
+              paymentLogsMap.set(log.case_id, []);
+            }
+            paymentLogsMap.get(log.case_id).push({
+              amount: parseFloat(log.amount_collected),
+              date: log.created_at,
+              notes: log.call_notes
+            });
+          }
+        });
+      }
+
+      const enrichedCases = cases.map(caseItem => {
+        const latestCallLog = latestCallLogMap.get(caseItem.id);
+        const payments = paymentLogsMap.get(caseItem.id) || [];
+
+        const totalPayments = payments.reduce((sum, p) => sum + p.amount, 0);
+        const paymentCount = payments.length;
+        const lastPayment = payments.length > 0 ? payments[0] : null;
+
+        return {
+          ...caseItem,
+          latest_call_status: latestCallLog?.call_status || 'No calls yet',
+          latest_call_notes: latestCallLog?.call_notes || '',
+          latest_call_date: latestCallLog?.created_at || '',
+          latest_ptp_date: latestCallLog?.ptp_date || '',
+          payment_count: paymentCount,
+          last_payment_amount: lastPayment?.amount || 0,
+          last_payment_date: lastPayment?.date || '',
+          calculated_total_collected: totalPayments
+        };
+      });
+
+      return enrichedCases;
+    } catch (error) {
+      console.error('Error in getCompleteCaseDataForExport:', error);
+      return [];
+    }
   }
 };
