@@ -270,56 +270,78 @@ export class TeamService {
   }
 
   static async deleteTeam(teamId: string): Promise<void> {
-    // First, get all telecallers in this team
-    const { data: telecallers, error: telecallersError } = await supabase
-      .from(EMPLOYEE_TABLE)
-      .select('id')
-      .eq('team_id', teamId);
-
-    if (telecallersError) {
-      console.error('Error fetching telecallers for team deletion:', telecallersError);
-      throw new Error('Failed to fetch team telecallers');
-    }
-
-    const telecallerIds = telecallers?.map(t => t.id) || [];
-
-    // Unassign all cases from this team's telecallers
-    if (telecallerIds.length > 0) {
-      const { error: casesError } = await supabase
-        .from('customer_cases')
-        .update({
-          telecaller_id: null,
-          assigned_employee_id: null,
-          team_id: null,
-          status: 'new',
-          updated_at: new Date().toISOString()
-        })
-        .in('telecaller_id', telecallerIds);
-
-      if (casesError) {
-        console.error('Error unassigning cases during team deletion:', casesError);
-        throw new Error('Failed to unassign cases from team telecallers');
-      }
-    }
-
-    // Unassign telecallers from the team
-    const { error: employeesError } = await supabase
-      .from(EMPLOYEE_TABLE)
-      .update({ team_id: null })
-      .eq('team_id', teamId);
-
-    if (employeesError) {
-      console.error('Error unassigning telecallers from team:', employeesError);
-      throw new Error('Failed to unassign telecallers from team');
-    }
-
-    // Finally, delete the team
+    // Delete the team - database CASCADE constraints handle cleanup:
+    // 1. customer_cases with team_id = teamId are CASCADE deleted
+    // 2. case_call_logs for those cases are CASCADE deleted
+    // 3. team_telecallers records are CASCADE deleted
+    // 4. employees.team_id is SET NULL (telecallers unassigned)
     const { error } = await supabase
       .from(TEAM_TABLE)
       .delete()
       .eq('id', teamId);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error deleting team:', error);
+
+      // Provide user-friendly error messages
+      if (error.code === '23503') {
+        throw new Error('Cannot delete team: It has dependent records that must be removed first');
+      } else {
+        throw new Error(`Failed to delete team: ${error.message}`);
+      }
+    }
+  }
+
+  static async getTeamDeletionImpact(teamId: string): Promise<{
+    telecallerCount: number;
+    caseCount: number;
+    callLogCount: number;
+  }> {
+    // Get count of telecallers in this team
+    const { count: telecallerCount, error: telecallerError } = await supabase
+      .from(EMPLOYEE_TABLE)
+      .select('*', { count: 'exact', head: true })
+      .eq('team_id', teamId);
+
+    if (telecallerError) {
+      console.error('Error counting telecallers:', telecallerError);
+    }
+
+    // Get count of cases assigned to this team
+    const { count: caseCount, error: caseError } = await supabase
+      .from('customer_cases')
+      .select('*', { count: 'exact', head: true })
+      .eq('team_id', teamId);
+
+    if (caseError) {
+      console.error('Error counting cases:', caseError);
+    }
+
+    // Get count of call logs for this team's cases
+    let callLogCount = 0;
+    if (caseCount && caseCount > 0) {
+      const { data: caseIds } = await supabase
+        .from('customer_cases')
+        .select('id')
+        .eq('team_id', teamId);
+
+      if (caseIds && caseIds.length > 0) {
+        const { count, error: callLogError } = await supabase
+          .from('case_call_logs')
+          .select('*', { count: 'exact', head: true })
+          .in('case_id', caseIds.map(c => c.id));
+
+        if (!callLogError && count) {
+          callLogCount = count;
+        }
+      }
+    }
+
+    return {
+      telecallerCount: telecallerCount || 0,
+      caseCount: caseCount || 0,
+      callLogCount: callLogCount || 0
+    };
   }
 
   static async getAvailableTelecallers(tenantId: string, excludeTeamId?: string): Promise<Pick<Telecaller, 'id' | 'name' | 'emp_id'>[]> {

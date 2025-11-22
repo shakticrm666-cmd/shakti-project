@@ -68,29 +68,52 @@ export const Teams: React.FC = () => {
     const team = teams.find(t => t.id === teamId);
     if (!team) return;
 
-    showConfirmation({
-      title: 'Delete Team',
-      message: `Are you sure you want to delete team "${team.name}"? This will remove all team assignments and cannot be undone.`,
-      confirmText: 'Delete',
-      cancelText: 'Cancel',
-      type: 'danger',
-      onConfirm: async () => {
-        try {
-          await TeamService.deleteTeam(teamId);
-          loadTeams();
-          showNotification(notificationHelpers.success(
-            'Team Deleted',
-            `Team "${team.name}" deleted successfully!`
-          ));
-        } catch (error) {
-          console.error('Error deleting team:', error);
-          showNotification(notificationHelpers.error(
-            'Delete Failed',
-            'Failed to delete team. Please try again.'
-          ));
+    try {
+      // Get deletion impact information
+      const impact = await TeamService.getTeamDeletionImpact(teamId);
+
+      // Build detailed warning message
+      const impactDetails = [
+        `Team: ${team.name}`,
+        `Telecallers to be unassigned: ${impact.telecallerCount}`,
+        `Customer cases to be deleted: ${impact.caseCount}`,
+        `Call logs to be deleted: ${impact.callLogCount}`
+      ].join('\n');
+
+      const warningMessage = impact.caseCount > 0
+        ? `WARNING: This action will permanently delete:\n\n${impactDetails}\n\nThis action CANNOT be undone. All case data and call history will be permanently lost.`
+        : `This will unassign ${impact.telecallerCount} telecaller(s) from the team.\n\nThe team has no cases assigned, so no case data will be lost.`;
+
+      showConfirmation({
+        title: 'Delete Team - Confirm Permanent Deletion',
+        message: warningMessage,
+        confirmText: 'Delete Permanently',
+        cancelText: 'Cancel',
+        type: 'danger',
+        onConfirm: async () => {
+          try {
+            await TeamService.deleteTeam(teamId);
+            loadTeams();
+            showNotification(notificationHelpers.success(
+              'Team Deleted',
+              `Team "${team.name}" and all related data have been permanently deleted.`
+            ));
+          } catch (error) {
+            console.error('Error deleting team:', error);
+            showNotification(notificationHelpers.error(
+              'Delete Failed',
+              error instanceof Error ? error.message : 'Failed to delete team. Please try again.'
+            ));
+          }
         }
-      }
-    });
+      });
+    } catch (error) {
+      console.error('Error getting deletion impact:', error);
+      showNotification(notificationHelpers.error(
+        'Error',
+        'Failed to load team information. Please try again.'
+      ));
+    }
   };
 
   const handleToggleStatus = async (teamId: string) => {
