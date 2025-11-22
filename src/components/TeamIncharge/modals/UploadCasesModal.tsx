@@ -295,19 +295,51 @@ export const UploadCasesModal: React.FC<UploadCasesModalProps> = ({
 
       // Prepare cases for bulk insert
       const cases = dataToUpload.map(row => {
-        const loanId = row['loanId'] || '';
-        const customerName = row['customerName'] || '';
+        // Helper function to convert values
+        const getValue = (key: string) => {
+          const val = row[key];
+          if (val === null || val === undefined || val === '') return null;
+          return String(val);
+        };
+
+        const getIntValue = (key: string) => {
+          const val = row[key];
+          if (val === null || val === undefined || val === '') return null;
+          const parsed = parseInt(String(val));
+          return isNaN(parsed) ? null : parsed;
+        };
 
         return {
           tenant_id: tenantId,
           team_id: selectedTeam,
           product_name: selectedProduct,
-          loan_id: String(loanId),
-          customer_name: String(customerName),
+          loan_id: String(row['loanId'] || ''),
+          customer_name: String(row['customerName'] || ''),
+          mobile_no: getValue('mobileNo'),
+          alternate_number: getValue('alternateNumber'),
+          email: getValue('email'),
+          loan_amount: getValue('loanAmount'),
+          loan_type: getValue('loanType'),
+          outstanding_amount: getValue('outstandingAmount'),
+          pos_amount: getValue('posAmount'),
+          emi_amount: getValue('emiAmount'),
+          pending_dues: getValue('pendingDues'),
+          dpd: getIntValue('dpd'),
+          branch_name: getValue('branchName'),
+          address: getValue('address'),
+          city: getValue('city'),
+          state: getValue('state'),
+          pincode: getValue('pincode'),
+          sanction_date: getValue('sanctionDate'),
+          last_paid_date: getValue('lastPaidDate'),
+          last_paid_amount: getValue('lastPaidAmount'),
+          payment_link: getValue('paymentLink'),
+          remarks: getValue('remarks'),
           case_data: row,
           status: 'new' as const,
           uploaded_by: user.id,
-          assigned_employee_id: null
+          assigned_employee_id: null,
+          telecaller_id: null
         };
       });
 
