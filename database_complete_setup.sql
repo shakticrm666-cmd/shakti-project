@@ -18,7 +18,7 @@
   - Role-based access: SuperAdmin, CompanyAdmin, TeamIncharge, Telecaller
   - Loan recovery case management with call logging and team management
 
-  TABLES (12):
+  TABLES (13):
   1. super_admins - Super administrator authentication
   2. tenants - Company/tenant registry
   3. tenant_databases - Database connection registry for each tenant
@@ -29,8 +29,9 @@
   8. teams - Team management for organizing telecallers
   9. team_telecallers - Junction table for team-telecaller assignments
   10. column_configurations - Dynamic column settings per tenant
-  11. customer_cases - Loan recovery case management
-  12. case_call_logs - Call interaction history
+  11. telecaller_targets - Performance targets for telecallers
+  12. customer_cases - Loan recovery case management
+  13. case_call_logs - Call interaction history
 
   SECURITY:
   - RLS enabled on all tables
@@ -317,7 +318,25 @@ CREATE TABLE team_telecallers (
 
 COMMENT ON TABLE team_telecallers IS 'Junction table for team-telecaller many-to-many relationships';
 
--- TABLE 10: column_configurations
+-- TABLE 10: telecaller_targets
+CREATE TABLE telecaller_targets (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  telecaller_id uuid NOT NULL REFERENCES employees(id) ON DELETE CASCADE UNIQUE,
+  daily_calls_target integer DEFAULT 0 CHECK (daily_calls_target >= 0),
+  weekly_calls_target integer DEFAULT 0 CHECK (weekly_calls_target >= 0),
+  monthly_calls_target integer DEFAULT 0 CHECK (monthly_calls_target >= 0),
+  daily_collections_target numeric DEFAULT 0 CHECK (daily_collections_target >= 0),
+  weekly_collections_target numeric DEFAULT 0 CHECK (weekly_collections_target >= 0),
+  monthly_collections_target numeric DEFAULT 0 CHECK (monthly_collections_target >= 0),
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+COMMENT ON TABLE telecaller_targets IS 'Performance targets for telecallers (calls and collections)';
+COMMENT ON COLUMN telecaller_targets.daily_calls_target IS 'Target number of calls per day';
+COMMENT ON COLUMN telecaller_targets.daily_collections_target IS 'Target collection amount per day';
+
+-- TABLE 11: column_configurations
 CREATE TABLE column_configurations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -337,7 +356,7 @@ COMMENT ON TABLE column_configurations IS 'Dynamic column configurations per ten
 COMMENT ON COLUMN column_configurations.is_custom IS 'True for user-created columns, false for system columns';
 COMMENT ON COLUMN column_configurations.column_order IS 'Display order in UI';
 
--- TABLE 11: customer_cases
+-- TABLE 12: customer_cases
 CREATE TABLE customer_cases (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -383,7 +402,7 @@ COMMENT ON COLUMN customer_cases.case_data IS 'JSONB storage for Excel import da
 COMMENT ON COLUMN customer_cases.total_collected_amount IS 'Cumulative total of all payments collected for this case';
 COMMENT ON COLUMN customer_cases.dpd IS 'Days Past Due';
 
--- TABLE 12: case_call_logs
+-- TABLE 13: case_call_logs
 CREATE TABLE case_call_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   case_id uuid NOT NULL REFERENCES customer_cases(id) ON DELETE CASCADE,
@@ -474,6 +493,9 @@ CREATE INDEX idx_column_config_custom ON column_configurations(tenant_id, is_cus
 CREATE INDEX idx_column_config_order ON column_configurations(tenant_id, column_order);
 CREATE INDEX idx_column_config_product ON column_configurations(product_name);
 
+-- telecaller_targets indexes
+CREATE INDEX idx_telecaller_targets_telecaller_id ON telecaller_targets(telecaller_id);
+
 -- customer_cases indexes
 CREATE INDEX idx_customer_cases_tenant ON customer_cases(tenant_id);
 CREATE INDEX idx_customer_cases_employee ON customer_cases(tenant_id, assigned_employee_id);
@@ -538,6 +560,10 @@ CREATE TRIGGER update_column_configurations_updated_at
   BEFORE UPDATE ON column_configurations
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+CREATE TRIGGER update_telecaller_targets_updated_at
+  BEFORE UPDATE ON telecaller_targets
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 CREATE TRIGGER update_customer_cases_updated_at
   BEFORE UPDATE ON customer_cases
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -556,6 +582,7 @@ ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
 ALTER TABLE teams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_telecallers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE column_configurations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE telecaller_targets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customer_cases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE case_call_logs ENABLE ROW LEVEL SECURITY;
 
@@ -704,6 +731,19 @@ CREATE POLICY "Allow anon insert call logs"
 CREATE POLICY "Allow anon update call logs"
   ON case_call_logs FOR UPDATE TO anon USING (true) WITH CHECK (true);
 
+-- telecaller_targets policies
+CREATE POLICY "Allow anon read telecaller targets"
+  ON telecaller_targets FOR SELECT TO anon USING (true);
+
+CREATE POLICY "Allow anon insert telecaller targets"
+  ON telecaller_targets FOR INSERT TO anon WITH CHECK (true);
+
+CREATE POLICY "Allow anon update telecaller targets"
+  ON telecaller_targets FOR UPDATE TO anon USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow anon delete telecaller targets"
+  ON telecaller_targets FOR DELETE TO anon USING (true);
+
 -- ===============================================================================
 -- SECTION 9: DEFAULT SUPERADMIN ACCOUNT CREATION
 -- ===============================================================================
@@ -766,13 +806,14 @@ BEGIN
   AND table_name IN (
     'super_admins', 'tenants', 'tenant_databases', 'company_admins',
     'tenant_migrations', 'audit_logs', 'employees', 'teams',
-    'team_telecallers', 'column_configurations', 'customer_cases', 'case_call_logs'
+    'team_telecallers', 'column_configurations', 'telecaller_targets',
+    'customer_cases', 'case_call_logs'
   );
 
-  IF table_count = 12 THEN
-    RAISE NOTICE '✓ All 12 tables created successfully';
+  IF table_count = 13 THEN
+    RAISE NOTICE '✓ All 13 tables created successfully';
   ELSE
-    RAISE WARNING '⚠ Expected 12 tables, found %', table_count;
+    RAISE WARNING '⚠ Expected 13 tables, found %', table_count;
   END IF;
 END $$;
 
@@ -810,11 +851,11 @@ COMMIT;
   5. Configure employees and teams
 
   Database Statistics:
-  - Total Tables: 12
-  - Total Indexes: 50+
-  - Total Triggers: 10
+  - Total Tables: 13
+  - Total Indexes: 51+
+  - Total Triggers: 11
   - Total Functions: 3
-  - RLS Policies: 40+
+  - RLS Policies: 44+
 
   For more information, refer to the project documentation.
   ===============================================================================

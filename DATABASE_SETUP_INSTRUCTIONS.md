@@ -45,7 +45,7 @@ Before running the setup script, ensure you have:
 
 ## 📊 Database Schema
 
-### Tables Created (12)
+### Tables Created (13)
 
 | # | Table Name | Description |
 |---|------------|-------------|
@@ -59,8 +59,9 @@ Before running the setup script, ensure you have:
 | 8 | `teams` | Team management structure |
 | 9 | `team_telecallers` | Team-telecaller relationships |
 | 10 | `column_configurations` | Dynamic column settings |
-| 11 | `customer_cases` | Loan recovery case management |
-| 12 | `case_call_logs` | Call interaction history |
+| 11 | `telecaller_targets` | Performance targets for telecallers |
+| 12 | `customer_cases` | Loan recovery case management |
+| 13 | `case_call_logs` | Call interaction history |
 
 ### Key Features
 
@@ -194,12 +195,13 @@ WHERE table_schema = 'public'
   AND table_name IN (
     'super_admins', 'tenants', 'tenant_databases', 'company_admins',
     'tenant_migrations', 'audit_logs', 'employees', 'teams',
-    'team_telecallers', 'column_configurations', 'customer_cases', 'case_call_logs'
+    'team_telecallers', 'column_configurations', 'telecaller_targets',
+    'customer_cases', 'case_call_logs'
   )
 ORDER BY table_name;
 ```
 
-Expected: 12 rows
+Expected: 13 rows
 
 ### 2. Verify Superadmin Account
 
@@ -220,7 +222,7 @@ WHERE schemaname = 'public'
 ORDER BY tablename, indexname;
 ```
 
-Expected: 50+ indexes
+Expected: 51+ indexes
 
 ### 4. Verify RLS Policies
 
@@ -231,7 +233,7 @@ WHERE schemaname = 'public'
 ORDER BY tablename;
 ```
 
-Expected: 40+ policies
+Expected: 44+ policies
 
 ### 5. Test Triggers
 
